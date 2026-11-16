@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-16-65]</title>
+<title>変則麻雀 [build 2026-11-16-66]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -196,7 +196,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-16-65</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-16-66</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -1490,6 +1490,17 @@ function isFuriten(p) {
   var waits = playerWaits(p);
   return waits.some(function (w) { return p.discardTypes.indexOf(w) >= 0; });
 }
+function markShapeFuriten(q, tileType) {
+  // 形としては上がりの牌が捨てられて見逃されたら、その時点でフリテンにする (bd指示 2026-11-16)。
+  // 役不足やオールマイティのペナルティで「上がれない」手でも、形の待ちが先に出てしまったら
+  // 上がれずにフリテンになる、という解釈。捨て牌フリテン (形だけの待ちを含む) と同じ基準。
+  if (playerWaits(q).indexOf(tileType) < 0) return;
+  if (q.riichi) {
+    if (!q.riichiFuriten) { q.riichiFuriten = true; log(q.name + ' はフリテンになった（' + MJ.TILE_NAMES[tileType] + ' は形の待ち）'); }
+  } else if (!q.tempFuriten) {
+    q.tempFuriten = true; log(q.name + ' はフリテンになった（' + MJ.TILE_NAMES[tileType] + ' は形の待ち）');
+  }
+}
 function almightyFoulNow(p) {
   if (S.variant !== 'allmighty' && !isDoubtVariant()) return false;
   var pc = playerCounts(p, null);
@@ -2207,10 +2218,10 @@ var qi = (pi + oi) % 4, q = G.players[qi];
 if (S.variant === 'survival' &&!q.declared) continue;
 if (S.variant === 'chain' && G.chainOut && G.chainOut[qi]) continue;
 if (S.variant === 'bridge' && G.bridgeNoRon && G.bridgeNoRon[qi]) continue;
-if (almightyFoulNow(q)) continue;
+if (almightyFoulNow(q)) { markShapeFuriten(q, tile.t); continue; }
 var ev = evalWin(q, tile.t, { tsumo: false, houtei: houtei, winningRed: tile.red &&!tile.wild,
 firstTurn:!q.hasDrawn && G.totalDiscards <= 4});
-if (!ev) continue;
+if (!ev) { markShapeFuriten(q, tile.t); continue; }
 if (isFuriten(q)) { continue;}
 if (q.isHuman) {
 renderAll();
@@ -3333,7 +3344,7 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
 async function doubtRonPhase(pi, tile, houtei) {
   for (var oi = 1; oi <= 3; oi++) {
     var qi = (pi + oi) % 4, q = G.players[qi];
-    if (almightyFoulNow(q)) continue;
+    if (almightyFoulNow(q)) { markShapeFuriten(q, tile.t); continue; }
     var trueEv = null;
     if (!isFuriten(q)) {
       trueEv = evalWin(q, tile.t, { tsumo: false, houtei: houtei, winningRed: tile.red && !tile.wild, firstTurn: !q.hasDrawn && G.totalDiscards <= 4 });
@@ -3361,19 +3372,16 @@ async function doubtRonPhase(pi, tile, houtei) {
         if (ev3 && (!fakeEv || ev3.score.total > fakeEv.score.total)) fakeEv = ev3;
       }
     }
-    if (!trueEv && !fakeEv) continue;
+    if (!trueEv && !fakeEv) { markShapeFuriten(q, tile.t); continue; }
     var wants = false;
     if (q.isHuman) {
       renderAll();
       var shownEv = trueEv || fakeEv;
       wants = await waitHuman([{ label: 'ロン！ ' + hanText(shownEv) + ' ' + shownEv.score.total + '点', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
-      if (!wants) {
-        if (trueEv) { if (q.riichi) q.riichiFuriten = true; else q.tempFuriten = true; }
-        continue;
-      }
+      if (!wants) { markShapeFuriten(q, tile.t); continue; }
     } else {
       wants = trueEv ? true : Math.random() < 0.75;
-      if (!wants) continue;
+      if (!wants) { markShapeFuriten(q, tile.t); continue; }
     }
     var discarder = G.players[pi];
     var doubtIt = false;
