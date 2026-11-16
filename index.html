@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-17-67]</title>
+<title>変則麻雀 [build 2026-11-17-68]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -196,7 +196,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-17-67</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-17-68</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -3350,10 +3350,9 @@ async function doubtRonPhase(pi, tile, houtei) {
       trueEv = evalWin(q, tile.t, { tsumo: false, houtei: houtei, winningRed: tile.red && !tile.wild, firstTurn: !q.hasDrawn && G.totalDiscards <= 4 });
     }
     var fakeEv = null;
-    // 嘘ロンにはフリテンを適用しない (bd指示 2026-11-17): 捨て牌フリテン・見逃しフリテンの
-    // 状態でも嘘ロンは宣言できる。フリテン判定は本物の当たり牌にのみ行う。
-    // ただし自分が捨てた牌そのものは待ちにできないので、その種への嘘ロンは不可 (build34、従来通り)。
-    var fakeFuriten = q.discardTypes.indexOf(tile.t) >= 0;
+    // 嘘ロンにもフリテンを適用する (bd指示 2026-11-17 確定): フリテン中は本物・嘘を問わず
+    // ロン宣言自体ができない (build51 の挙動に確定)。自分が捨てた牌そのものは待ちにできない (build34)。
+    var fakeFuriten = isFuriten(q) || q.discardTypes.indexOf(tile.t) >= 0;
     var waits = playerWaits(q);
     var hasMatchingWait = false;
     for (var wi = 0; wi < waits.length; wi++) {
