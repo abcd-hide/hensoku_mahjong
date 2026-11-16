@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-16-64]</title>
+<title>変則麻雀 [build 2026-11-16-65]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -196,7 +196,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-16-64</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-16-65</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -1013,7 +1013,10 @@ function evalHand(input) {
       var excl = r.yaku.filter(function (y) { return y.name !== 'ドラ' && y.name !== '裏ドラ' && y.name !== '赤ドラ'; }).reduce(function (a, y) { return a + y.han; }, 0);
       var nh = r.han - wild;
       // ペナルティは役の翻数から引く (原典PDF): 役が消えてドラだけが残る手は上がれない (build33)
-      if (excl - wild < 1 || nh < 1) return;
+      // penaltyCredit: エンジン外で加わる役翻 (ダウトの重ねリーチ) も「通常の役翻」として
+      // ゲートに算入する (原典: 重ねリーチは通常の役として数える)。最終翻への加算は呼び出し側が行う。
+      var credit = input.penaltyCredit || 0;
+      if (excl + credit - wild < 1 || nh + credit < 1) return;
       penalized.push(Object.assign({}, r, { han: nh, wildPenaltyApplied: wild, label: HAN_LABEL(nh, 0, input.ctx.settings || {}),
         score: scoreFromHanFu(nh, r.fu, input.ctx.isDealer, input.ctx.tsumo, input.ctx.settings || {}) }));
     });
@@ -1395,7 +1398,8 @@ function evalWin(p, winningTileType, opts) {
   var evalCounts = pc.counts, evalMelds = playerMeldsForEval(p), evalWild = pc.wildCount, evalWildFace = pc.wildFace;
   var r = MJ.evalHand({ counts: evalCounts, melds: evalMelds, ctx: ctx,
     wildCount: evalWild, wildFace: evalWildFace, wildFaceRed: true,
-    wildMode: wildMode, wildPenalty: S.variant === 'allmighty' || isDoubtVariant() });
+    wildMode: wildMode, wildPenalty: S.variant === 'allmighty' || isDoubtVariant(),
+    penaltyCredit: isDoubtVariant() ? (p.riichiStacks || 0) : 0 });
   if (isDoubtVariant() && r) {
     if (!r.yakumanCount && p.riichi && p.riichiStacks > 0) {
       r.yaku.push({ name: '重ねリーチ', han: p.riichiStacks });
@@ -3003,13 +3007,17 @@ async function doubtTurnWindow(pi) {
 /* ---------- 鳴き (嘘可) ---------- */
 function doubtDisposableTiles(p) {
   var counts = new Array(34).fill(0);
-  p.hand.forEach(function (t) { counts[t.t]++; });
+  p.hand.forEach(function (t) { if (t.t >= 0) counts[t.t]++; });
   return p.hand.filter(function (t) {
+    if (t.wild || t.t < 0) return false; // ワイルドは嘘鳴きの材料にしない
     if (counts[t.t] > 1) return false;
     if (t.t < 27) {
       var n = t.t % 9;
       if (n > 0 && counts[t.t - 1] > 0) return false;
       if (n < 8 && counts[t.t + 1] > 0) return false;
+      // リャンメン/シャンポン等のターツ片 (±2 の相方) は孤立牌ではない (build65)
+      if (n > 1 && counts[t.t - 2] > 0) return false;
+      if (n < 7 && counts[t.t + 2] > 0) return false;
     }
     return true;
   });
@@ -3017,29 +3025,37 @@ function doubtDisposableTiles(p) {
 function doubtLieCallOk(p, tile, kind) {
   // CPUの嘘鳴きは目的があるときだけ (ユーザー指示 2026-11-15):
   //  (a) 鳴けばテンパイに届く手 (1シャンテン以内)。テンパイ手なら、ダウトで取り消されても元のテンパイに戻る。
-  //  (b) 狙い (役牌・染め手・タンヤオ・対々) があって 2シャンテン以内の手。
+  //  (b) 狙い (役牌・染め手・タンヤオ・対々) があって 2シャンテン以内の手 (カンは (a) のみ)。
   //  それ以外のバラバラな手で、使い捨て牌を並べるだけの嘘鳴きはしない。
   //  さらに、ダウトで取り消された場合に「戻された牌をそのまま捨てるだけ」になる鳴きもしない。
+  // build65 (bd指摘): 主張した形として数えても手が前に進まない嘘鳴きは、戻されても
+  //  そのまま捨てるだけの無駄鳴きになるのでしない。カンは晒す牌が多い分、条件を厳しくする。
   var need = kind === 'kan' ? 3 : 2;
   var disp = doubtDisposableTiles(p);
   if (disp.length < need) return false;
+  var use = disp.slice(0, need);
   var curSh = playerShanten(p);
   var aim = hasYakuProspect(p, tile, kind) || MJ.IS_HONOR(tile.t);
   if (!(curSh <= 1 || (aim && curSh <= 2))) return false;
+  if (kind === 'kan' && curSh > 1) return false;
+  // 主張形として数えたシャンテンが前進するか (テンパイ到達・テンパイ維持を含む)
+  var pc = playerCounts(p, null);
+  var countsAfter = pc.counts.slice();
+  use.forEach(function (t) { if (t.t >= 0) countsAfter[t.t]--; });
+  var shAfter = MJ.shanten(countsAfter, p.melds.length + 1, pc.wildCount);
+  if (!(shAfter < curSh || shAfter <= 0)) return false;
   // バスト時のシミュレーション: 全牌が手に戻った14枚から CPU が切る牌が、鳴きに使った牌
   // (または取った牌) そのものなら、その鳴きは戻されてそのまま捨てるだけなので却下する
-  var use = disp.slice(0, need);
   var backupHand = p.hand;
   var restored = backupHand.concat([tile]);
   p.hand = restored;
   var plan = null;
   try { plan = cpuPlanDiscard(G.players.indexOf(p)); } catch (e) { plan = null; }
   p.hand = backupHand;
-  if (plan && plan.tileId !== undefined && plan.tileId !== null) {
-    var planTile = null;
-    for (var i = 0; i < restored.length; i++) if (restored[i].id === plan.tileId) { planTile = restored[i]; break; }
-    if (planTile && (use.indexOf(planTile) >= 0 || planTile === tile)) return false;
-  }
+  if (!plan || plan.tileId === undefined || plan.tileId === null) return false; // 判定できない鳴きはしない
+  var planTile = null;
+  for (var i = 0; i < restored.length; i++) if (restored[i].id === plan.tileId) { planTile = restored[i]; break; }
+  if (planTile && (use.indexOf(planTile) >= 0 || planTile === tile)) return false;
   return true;
 }
 function doubtCpuCallDecision(cq, tile, kind) {
@@ -3048,7 +3064,7 @@ function doubtCpuCallDecision(cq, tile, kind) {
   if (kind === 'pon' || kind === 'kan') {
     var honestNeed = kind === 'pon' ? 2 : 3;
     if (same >= honestNeed && cpuShouldCall(cq === undefined ? 0 : G.players.indexOf(cq), tile, kind)) return { lie: false };
-    if (doubtLieCallOk(cq, tile, kind) && Math.random() < 0.85) return { lie: true };
+    if (doubtLieCallOk(cq, tile, kind) && Math.random() < (kind === 'kan' ? 0.6 : 0.85)) return { lie: true };
     return null;
   }
   return null;
