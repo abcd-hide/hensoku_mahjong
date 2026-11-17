@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-17-73]</title>
+<title>変則麻雀 [build 2026-11-17-74]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -196,7 +196,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-17-73</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-17-74</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -1502,10 +1502,11 @@ function markShapeFuriten(q, tileType) {
   // 役不足やオールマイティのペナルティで「上がれない」手でも、形の待ちが先に出てしまったら
   // 上がれずにフリテンになる、という解釈。捨て牌フリテン (形だけの待ちを含む) と同じ基準。
   if (playerWaits(q).indexOf(tileType) < 0) return;
+  // ログは本人のときだけ出す: 相手のフリテンを表示すると待ちが漏れてしまう (bd指示 2026-11-17)
   if (q.riichi) {
-    if (!q.riichiFuriten) { q.riichiFuriten = true; log(q.name + ' はフリテンになった（' + MJ.TILE_NAMES[tileType] + ' は形の待ち）'); }
+    if (!q.riichiFuriten) { q.riichiFuriten = true; if (q.isHuman) log(q.name + ' はフリテンになった（' + MJ.TILE_NAMES[tileType] + ' は形の待ち）'); }
   } else if (!q.tempFuriten) {
-    q.tempFuriten = true; log(q.name + ' はフリテンになった（' + MJ.TILE_NAMES[tileType] + ' は形の待ち）');
+    q.tempFuriten = true; if (q.isHuman) log(q.name + ' はフリテンになった（' + MJ.TILE_NAMES[tileType] + ' は形の待ち）');
   }
 }
 function almightyFoulNow(p) {
@@ -4572,7 +4573,7 @@ function bridgePrepareNoRon(discarderPi, tile) {
       var ev = evalWin(q, tile.t, { tsumo: false });
       if (ev) {
         if (q.riichi) q.riichiFuriten = true; else q.tempFuriten = true;
-        log(q.name + ' はこの順では先手の牌に当たれない（フリテンになる）');
+        if (q.isHuman) log(q.name + ' はこの順では先手の牌に当たれない（フリテンになる）');
       }
     }
   }
@@ -5858,9 +5859,9 @@ function markShapeFuritenSashi(q, tileType) {
   // 判定は二人の専用の待ち (sashiWaits) 基準で、対象は相手の捨て牌に対してのみ。
   if (sashiWaits(q).indexOf(tileType) < 0) return;
   if (q.riichi) {
-    if (!q.riichiFuriten) { q.riichiFuriten = true; log(q.name + ' はフリテンになった（' + MJ.TILE_NAMES[tileType] + ' は形の待ち）'); }
+    if (!q.riichiFuriten) { q.riichiFuriten = true; if (q.isHuman) log(q.name + ' はフリテンになった（' + MJ.TILE_NAMES[tileType] + ' は形の待ち）'); }
   } else if (!q.tempFuriten) {
-    q.tempFuriten = true; log(q.name + ' はフリテンになった（' + MJ.TILE_NAMES[tileType] + ' は形の待ち）');
+    q.tempFuriten = true; if (q.isHuman) log(q.name + ' はフリテンになった（' + MJ.TILE_NAMES[tileType] + ' は形の待ち）');
   }
 }
 function evalSashiWin(p, usedCounts, winTileType, opts) {
