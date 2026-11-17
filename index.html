@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-17-72]</title>
+<title>変則麻雀 [build 2026-11-17-73]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -196,7 +196,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-17-72</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-17-73</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -1401,7 +1401,7 @@ function evalWin(p, winningTileType, opts) {
   var evalCounts = pc.counts, evalMelds = playerMeldsForEval(p), evalWild = pc.wildCount, evalWildFace = pc.wildFace;
   // ダウト: 公開された鳴きの中のワイルドはペナルティが確定する。伏せた鳴きの中は数えない (bd確定 2026-11-17)
   var revealedWilds = 0;
-  if (isDoubtVariant()) p.melds.forEach(function (m) { if (m.revealed) m.tiles.forEach(function (t) { if (t.wild) revealedWilds++; }); });
+  if (isDoubtVariant()) p.melds.forEach(function (m) { if (m.revealed) m.tiles.forEach(function (t) { if (t.wild && !(m.kakanHidden && t.id === m.kakanTileId)) revealedWilds++; }); });
   var r = MJ.evalHand({ counts: evalCounts, melds: evalMelds, ctx: ctx,
     wildCount: evalWild, wildFace: evalWildFace, wildFaceRed: true,
     wildMode: wildMode, wildPenalty: S.variant === 'allmighty' || isDoubtVariant(),
@@ -1572,7 +1572,10 @@ function meldTilesHTML(m, small, ownerView, ownerPi) {
     tiles.splice(tiles.indexOf(called), 1);
     tiles.splice(Math.min(calledPos(), tiles.length), 0, called);
   }
-  return tiles.map(function (t) { return tileHTML(t, { small: !!small, rot: !!called && t === called }); }).join('');
+  return tiles.map(function (t) {
+    if (m.kakanHidden && t.id === m.kakanTileId) return tileHTML(t, { small: !!small, back: true }); // 伏せた加槓牌
+    return tileHTML(t, { small: !!small, rot: !!called && t === called });
+  }).join('');
 }
 function tileHTML(tile, opts) {
   opts = opts || {};
@@ -1645,7 +1648,7 @@ function renderAll() {
     // 捨て牌が増えたら1行の枚数を増やして、手牌と重ならないようにする (19+: 9枚/行, 28+: 12枚/行・牌も小さく)
     var pondCls = p.discards.length >= 28 ? 'pond wide2' : (p.discards.length >= 19 ? 'pond wide' : 'pond');
     var meldsHtml = p.melds.map(function (m, mi) {
-      var btn = (isDoubtVariant() && pi !== 0 && m.hidden && !G.over) ? '<button class="doubt-btn" data-owner="' + pi + '" data-meld="' + mi + '">ダウト</button>' : '';
+      var btn = (isDoubtVariant() && pi !== 0 && (m.hidden || m.kakanHidden) && !G.over) ? '<button class="doubt-btn" data-owner="' + pi + '" data-meld="' + mi + '">ダウト</button>' : '';
       return '<span class="meld">' + meldTilesHTML(m, true, pi === 0, pi) + btn + '</span>';
     }).join('');
     var handRow;
@@ -2098,7 +2101,7 @@ while (true) {
 var buttons = [];
 if (pd && pd.ev) buttons.push({ label: 'ツモ！ ' + hanText(pd.ev) + (pd.ev.yakumanCount ? '（役満）' : ''), value: 'tsumo'});
 if (pd) pd.kans.forEach(function (k, i) {
-if (isDoubtVariant() && k.kind === 'kakan' && k.meldIndex !== undefined && p.melds[k.meldIndex] && p.melds[k.meldIndex].hidden) return; // 伏せポンの加槓は「牌を選ぶ (嘘可)」方式に寄せる
+if (isDoubtVariant() && k.kind === 'kakan' && k.meldIndex !== undefined && p.melds[k.meldIndex] && p.melds[k.meldIndex].uso !== undefined) return; // ダウトのポン (伏せ・公開とも) の加槓は「牌を選ぶ (嘘可)」方式に寄せる
 buttons.push({ label: (k.kind === 'ankan' ? '暗槓 ' : '加槓 ') + MJ.TILE_NAMES[k.tile], value: 'kan' + i});});
 if (isDoubtVariant()) doubtKakanOptions(pi).forEach(function (o) { buttons.push({ label: '加槓 ' + MJ.TILE_NAMES[o.tile] + '（牌を選ぶ）', value: 'dkakan' + o.meldIndex }); });
 if (riichiIds.length &&!mode.riichi) buttons.push({ label: '立直して切る', value: 'riichi'});
@@ -2142,7 +2145,7 @@ if (picked.button && picked.button.indexOf('dkakan') === 0) {
 var dmi = Number(picked.button.slice(6));
 G.pending = null; renderActions();
 var dmeld = p.melds[dmi];
-if (dmeld && dmeld.hidden && dmeld.kind === 'tri') {
+if (dmeld && (dmeld.hidden || dmeld.revealed) && dmeld.kind === 'tri') {
 var prevCurDk = G.current; G.current = 0; renderAll();
 var pickedTilesDk = await narabePickTiles(pi, 1, '加槓で加える牌を1枚選んでください（' + MJ.TILE_NAMES[dmeld.tile] + ' の槓。ワイルドは代用で本当扱い、それ以外は嘘になります）');
 G.current = prevCurDk; renderAll();
@@ -2926,7 +2929,7 @@ function doubtClaimIsTrue(kind, calledType, actualTiles, seqBase) {
   }
   return false;
 }
-function doubtUsoCount(p) { return p.melds.filter(function (m) { return m.hidden && m.uso; }).length; }
+function doubtUsoCount(p) { return p.melds.filter(function (m) { return (m.hidden || m.kakanHidden) && m.uso; }).length; }
 function doubtWildTotal(p) {
   var n = 0;
   p.hand.forEach(function (t) { if (t.wild) n++; });
@@ -2967,6 +2970,33 @@ async function doubtResolveMeld(doubterPi, ownerPi, meld, immediate) {
 async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
   var amount = immediate ? 2000 : 1000;
   var doubter = G.players[doubterPi], owner = G.players[ownerPi];
+  if (meld.kakanHidden) {
+    // 公開済みポンへの加槓に対するダウト: 判定は加えた1枚だけ。ポン自体は公開済みなので、
+    // 見破られても加槓だけが取り消され、ポンは残る
+    var addedTile = meld.tiles.find(function (t) { return t.id === meld.kakanTileId; });
+    var kTruth = !!addedTile && (addedTile.t === meld.tile || !!addedTile.wild);
+    var kActAsLie = !kTruth;
+    if (kTruth && owner.isHuman) {
+      var kAns = await modalChoice('<h3>' + doubter.name + ' があなたの加槓をダウトしました！</h3>' +
+        '<p>この加槓は本当です。公開すれば ' + amount + '点もらえます。<br>代わりに、' + amount + '点を支払って加槓を取り消し、牌を手に戻すこともできます。</p>',
+        [{ label: '本当だと公開する（' + amount + '点もらう）', value: 'open' },
+         { label: amount + '点払って加槓を取り消す（手に戻す）', value: 'fake', cls: 'sub' }]);
+      kActAsLie = kAns === 'fake';
+    }
+    if (kActAsLie) {
+      owner.score -= amount; doubter.score += amount;
+      if (addedTile) { meld.tiles.splice(meld.tiles.indexOf(addedTile), 1); owner.hand.push(addedTile); sortHand(owner); }
+      meld.kind = 'tri'; meld.claimKind = 'pon'; meld.kakanHidden = false; meld.kakanTileId = null; meld.uso = false;
+      log(owner.name + ' の加槓は' + (kTruth ? '本当だったが嘘として処理され' : '嘘だった') + '、' + doubter.name + ' へ ' + amount + '点。加槓は取り消された');
+    } else {
+      doubter.score -= amount; owner.score += amount;
+      meld.kakanHidden = false; meld.kakanTileId = null;
+      log(owner.name + ' の加槓は本当だった！ ' + doubter.name + ' は ' + owner.name + ' へ ' + amount + '点');
+    }
+    doubtTobiCheck();
+    renderAll();
+    return;
+  }
   var truth = !meld.uso;
   var actAsLie = !truth;
   if (truth && owner.isHuman) {
@@ -3055,7 +3085,7 @@ function doubtKakanOptions(pi) {
   if (!isDoubtVariant() || !p.hand.length) return [];
   var out = [];
   p.melds.forEach(function (m, mi) {
-    if (!m.hidden || m.kind !== 'tri') return;
+    if (m.kind !== 'tri' || (!m.hidden && !m.revealed)) return; // 伏せポン・公開済みポンの両方が対象 (bd指示 2026-11-17)
     if (p.riichi && !p.hand.some(function (t) { return doubtKakanWaitsOk(pi, mi, t); })) return;
     out.push({ meldIndex: mi, tile: m.tile });
   });
@@ -3071,6 +3101,8 @@ async function doubtExecuteKakan(pi, meldIndex, tileObj) {
   p.hand.splice(ti, 1);
   meld.tiles.push(tileObj);
   meld.kind = 'kan'; meld.claimKind = 'kan';
+  meld.kakanTileId = tileObj.id;
+  if (!meld.hidden) meld.kakanHidden = true; // 公開済みポンでは加えた1枚だけが伏せられ、ダウト対象になる
   if (!(tileObj.t === meld.tile || tileObj.wild)) meld.uso = true;
   log(p.name + ' 加槓 ' + MJ.TILE_NAMES[meld.tile]);
   // 槍槓チェック (主張した牌で判定)
@@ -3096,7 +3128,7 @@ async function doubtExecuteKakan(pi, meldIndex, tileObj) {
   renderAll();
   // 鳴き直後と同じ即ダウト窓 (捨てる前なら2000点)
   await doubtImmediateWindow(pi, meld);
-  if (p.melds.indexOf(meld) < 0) { G.rinshanFlag = false; return 'busted'; }
+  if (p.melds.indexOf(meld) < 0 || meld.kind !== 'kan') { G.rinshanFlag = false; return 'busted'; }
   return 'kan';
 }
 async function doubtImmediateWindow(ownerPi, meld) {
@@ -3121,7 +3153,7 @@ function onDoubtButton(ownerPi, meldIdx) {
   if (!G || G.over) return;
   var owner = G.players[ownerPi];
   var meld = owner && owner.melds[meldIdx];
-  if (!meld || !meld.hidden) { renderAll(); return; }
+  if (!meld || (!meld.hidden && !meld.kakanHidden)) { renderAll(); return; }
   // 自分の番のダウト窓が開いている場合は、その窓の選択として処理
   if (G.doubtChoice) {
     var dc = G.doubtChoice;
@@ -3145,7 +3177,7 @@ async function doubtTurnWindow(pi) {
   var targets = [];
   for (var oi = 0; oi < 4; oi++) {
     if (oi === pi) continue;
-    G.players[oi].melds.forEach(function (m) { if (m.hidden) targets.push({ owner: oi, meld: m }); });
+    G.players[oi].melds.forEach(function (m) { if (m.hidden || m.kakanHidden) targets.push({ owner: oi, meld: m }); });
   }
   if (!targets.length) return;
   var p = G.players[pi];
@@ -3542,7 +3574,7 @@ async function doubtRonPhase(pi, tile, houtei) {
         [{ label: 'ダウトする！（嘘なら点数を逆にもらえる）', value: true }, { label: 'ダウトしない（通常の支払い）', value: false, cls: 'sub' }]);
       doubtIt = ansD === true;
     } else {
-      doubtIt = Math.random() < Math.min(0.6, 0.25 + q.melds.filter(function (m) { return m.hidden; }).length * 0.1);
+      doubtIt = Math.random() < Math.min(0.6, 0.25 + q.melds.filter(function (m) { return m.hidden || m.kakanHidden; }).length * 0.1);
     }
     if (doubtIt) speakCall('ダウト');
     var settled = await doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei);
@@ -6347,9 +6379,12 @@ function uraHanOf(ev) {
 }
 function hanText(ev) {
   // ロン/ツモのときにわかる翻数 = 裏ドラを除いた翻数。「3翻+裏ドラ」のように表記する (bd指示 2026-11-16)
+  // リーチ上がりでは裏ドラの有無が漏れないよう、裏ドラが無くても「+裏ドラ」と表示する (bd指示 2026-11-17)
   if (!ev) return '';
   var ura = uraHanOf(ev);
-  return ura > 0 ? (ev.han - ura) + '翻+裏ドラ' : ev.han + '翻';
+  if (ev.yakumanCount > 0) return ev.han + '翻';
+  var riichiWin = ev.yaku.some(function (y) { return y.name === '立直' || y.name === 'ダブルリーチ' || y.name === 'オープン立直'; });
+  return (ura > 0 || riichiWin) ? (ev.han - ura) + '翻+裏ドラ' : ev.han + '翻';
 }
 function winDetailHTML(p, ev, title, winInfo) {
   var html = '<h3>' + title + '</h3>';
