@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-17-68]</title>
+<title>変則麻雀 [build 2026-11-17-69]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -127,7 +127,7 @@ legend { font-weight: bold; padding: 0 6px; }
 
 /* ---------- モーダル / 上がり表示 ---------- */
 #modal { position: fixed; inset: 0; background: rgba(0,0,0,.38); display: flex; align-items: center; justify-content: center; z-index: 50; }
-#modal-box { background: #f6f2e4; color: #222; border-radius: 12px; padding: 18px; max-width: 680px; width: 94%; max-height: 82vh; overflow-y: auto; }
+#modal-box { background: #f6f2e4; color: #222; border-radius: 12px; padding: 18px; max-width: 680px; width: 94%; max-height: 82vh; max-height: 82dvh; overflow-y: auto; overflow-x: hidden; }
 /* 場を見るモード: 結果ポップアップを下部の細いバーに畳んで場全体を見えるようにする */
 #modal.board-view { background: transparent; pointer-events: none; align-items: flex-end; padding-bottom: 10px; }
 #modal.board-view #modal-box { pointer-events: auto; padding: 8px 12px; }
@@ -196,7 +196,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-17-68</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-17-69</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -954,7 +954,10 @@ function jokerSpecialSubst(counts, wilds) {
 }
 function evalHand(input) {
   var wild = input.wildCount || 0;
-  if (!wild) return evalStandard(input);
+  // penaltyExtra: 手牌の代用には使えないがペナルティだけ効くワイルド枚数
+  // (ダウトで公開された鳴きの中のワイルド。伏せている間は数えない)
+  var pen = wild + (input.penaltyExtra || 0);
+  if (!wild && !pen) return evalStandard(input);
   // 高速な事前判定: ジョーカー分解で上がれない手は列挙しない (build32)
   var jokerSubst = decomposeJoker(input.counts, 4 - (input.melds ? input.melds.length : 0), wild);
   if (!jokerSubst) return null;
@@ -994,10 +997,10 @@ function evalHand(input) {
     results.forEach(function (r) {
       if (r.yakumanCount > 0) {
         // 役満は13翻扱いとしてペナルティを適用する (ダブル役満は26翻扱い) — 2026-08-08 ユーザー指示
-        var eff = r.yakumanCount * 13 - wild;
+        var eff = r.yakumanCount * 13 - pen;
         if (eff < 1) return;
         var ymOut = Math.floor(eff / 13);
-        var nr = Object.assign({}, r, { han: eff, wildPenaltyApplied: wild });
+        var nr = Object.assign({}, r, { han: eff, wildPenaltyApplied: pen });
         if (ymOut > 0) {
           nr.yakumanCount = ymOut;
           nr.score = yakumanScore(ymOut, input.ctx.isDealer, input.ctx.tsumo);
@@ -1011,13 +1014,13 @@ function evalHand(input) {
         return;
       }
       var excl = r.yaku.filter(function (y) { return y.name !== 'ドラ' && y.name !== '裏ドラ' && y.name !== '赤ドラ'; }).reduce(function (a, y) { return a + y.han; }, 0);
-      var nh = r.han - wild;
+      var nh = r.han - pen;
       // ペナルティは役の翻数から引く (原典PDF): 役が消えてドラだけが残る手は上がれない (build33)
       // penaltyCredit: エンジン外で加わる役翻 (ダウトの重ねリーチ) も「通常の役翻」として
       // ゲートに算入する (原典: 重ねリーチは通常の役として数える)。最終翻への加算は呼び出し側が行う。
       var credit = input.penaltyCredit || 0;
-      if (excl + credit - wild < 1 || nh + credit < 1) return;
-      penalized.push(Object.assign({}, r, { han: nh, wildPenaltyApplied: wild, label: HAN_LABEL(nh, 0, input.ctx.settings || {}),
+      if (excl + credit - pen < 1 || nh + credit < 1) return;
+      penalized.push(Object.assign({}, r, { han: nh, wildPenaltyApplied: pen, label: HAN_LABEL(nh, 0, input.ctx.settings || {}),
         score: scoreFromHanFu(nh, r.fu, input.ctx.isDealer, input.ctx.tsumo, input.ctx.settings || {}) }));
     });
     if (!penalized.length) return null;
@@ -1396,17 +1399,21 @@ function evalWin(p, winningTileType, opts) {
   };
   var wildMode = 'max'; // オールマイティもペナルティ後に一番有利な評価を採る (2026-08-08 ユーザー指示)
   var evalCounts = pc.counts, evalMelds = playerMeldsForEval(p), evalWild = pc.wildCount, evalWildFace = pc.wildFace;
+  // ダウト: 公開された鳴きの中のワイルドはペナルティが確定する。伏せた鳴きの中は数えない (bd確定 2026-11-17)
+  var revealedWilds = 0;
+  if (isDoubtVariant()) p.melds.forEach(function (m) { if (m.revealed) m.tiles.forEach(function (t) { if (t.wild) revealedWilds++; }); });
   var r = MJ.evalHand({ counts: evalCounts, melds: evalMelds, ctx: ctx,
     wildCount: evalWild, wildFace: evalWildFace, wildFaceRed: true,
     wildMode: wildMode, wildPenalty: S.variant === 'allmighty' || isDoubtVariant(),
-    penaltyCredit: isDoubtVariant() ? (p.riichiStacks || 0) : 0 });
+    penaltyCredit: isDoubtVariant() ? (p.riichiStacks || 0) : 0,
+    penaltyExtra: revealedWilds });
   if (isDoubtVariant() && r) {
     if (!r.yakumanCount && p.riichi && p.riichiStacks > 0) {
       r.yaku.push({ name: '重ねリーチ', han: p.riichiStacks });
       r.han += p.riichiStacks;
       r.score = MJ.scoreFromHanFu(r.han, r.fu, pi === G.dealer, isTsumo, engineSettings());
     }
-    var usoBonus = doubtUsoBonusEv(doubtUsoCount(p), evalWild, pi === G.dealer, isTsumo);
+    var usoBonus = doubtUsoBonusEv(doubtUsoCount(p), evalWild + revealedWilds, pi === G.dealer, isTsumo);
     if (usoBonus && usoBonus.score.total > r.score.total) {
       r.yaku = [{ name: usoBonus.name, han: usoBonus.han, yakuman: usoBonus.yakumanCount }];
       r.han = usoBonus.han; r.yakumanCount = usoBonus.yakumanCount; r.score = usoBonus.score;
@@ -1728,13 +1735,17 @@ function passButtonOf(btns) {
 }
 function showModal(html) {
   $('modal-box').innerHTML = html; $('modal').classList.remove('hidden');
+  // 前のモーダルのスクロール位置が残ると、結果画面の手牌 (先頭) が画面外になるため必ず先頭に戻す
+  $('modal-box').scrollTop = 0;
   // ポップアップのボタンに番号ヒントを付け、最初の選択肢にフォーカスする (キーボード操作用)
   var btns = $('modal-box').querySelectorAll('button');
   Array.prototype.forEach.call(btns, function (b, i) {
     if (!b.querySelector('.kbd-hint')) { var sp = document.createElement('span'); sp.className = 'kbd-hint'; sp.textContent = String(i + 1); b.insertBefore(sp, b.firstChild); }
   });
   var foc = passButtonOf(btns) || $('btn-next-hand') || $('modal-box').querySelector('button[data-mi]') || btns[0];
-  if (foc) foc.focus();
+  // preventScroll: フォーカスでモーダルが末尾ボタンまでスクロールし、結果画面の手牌が
+  // 画面外に押し出されるのを防ぐ (スマホで手牌が見えなかった原因)
+  if (foc) foc.focus({ preventScroll: true });
 }
 function choiceButtonsNow() {
   // 今キーボードで選べる選択肢ボタン (モーダル優先)。牌を選んでいる間は牌キーが優先
@@ -2040,6 +2051,7 @@ if (S.variant === 'poverty' && G.shibariRestrict && G.shibariRestrict.indexOf(pl
   if (altSh) plan = { tileId: altSh.id };
 }
 kuikaeFixCpuPlan(p, plan);
+if (S.variant === 'doubt') await doubtMaybeStack(pi);
 return applyDiscardChoice(pi, plan);
 }
 // 人間
@@ -2047,6 +2059,7 @@ var pd = G.postDraw || null; G.postDraw = null;
 if (p.riichi && G.lastDrawn && !(pd && (pd.ev || pd.kans.length))) {
   // 立直中: ツモ/カンの可否は afterDraw で処理済み。ここに来た=切るしかないので自動ツモ切り
   await sleep(650);
+  if (S.variant === 'doubt') await doubtMaybeStack(pi);
   return applyDiscardChoice(pi, { tileId: G.lastDrawn.id });
 }
 if (pd && pd.foul) log('オールマイティ単騎のため、この形では上がれない（反則）');
@@ -2116,6 +2129,7 @@ if (S.variant === 'roleplay' &&!p.ability && MJ.IS_HONOR(tile.t)) {
 granted = await pickAbility(pi, tile);
 }
 var result = { tileId: tile.id, riichi: mode.riichi, openRiichi: mode.open, protect: mode.protect, declareAfter: mode.declare, fix: mode.fix, grantedAbility: granted};
+if (S.variant === 'doubt') await doubtMaybeStack(pi);
 return applyDiscardChoice(pi, result);
 }
 }
@@ -2845,13 +2859,17 @@ function doubtMatchType(waitType, discardType) {
   return false;
 }
 function doubtClaimIsTrue(kind, calledType, actualTiles, seqBase) {
-  if (kind === 'pon') return actualTiles.length === 2 && actualTiles.every(function (t) { return t.t === calledType; });
-  if (kind === 'kan') return actualTiles.length === 3 && actualTiles.every(function (t) { return t.t === calledType; });
+  // ワイルド (オールマイティ) は主張した牌の代用として本当扱い (bd確定 2026-11-17)。
+  // 伏せている間はそのワイルドのペナルティは無いが、ダウトで公開されると確定する
+  // (evalWin の penaltyExtra 参照)。
+  var match = function (t, target) { return t.t === target || !!t.wild; };
+  if (kind === 'pon') return actualTiles.length === 2 && actualTiles.every(function (t) { return match(t, calledType); });
+  if (kind === 'kan') return actualTiles.length === 3 && actualTiles.every(function (t) { return match(t, calledType); });
   if (kind === 'chi') {
     var others = [seqBase, seqBase + 1, seqBase + 2].filter(function (x) { return x !== calledType; });
-    var actual = actualTiles.map(function (t) { return t.t; }).sort(function (a, b) { return a - b; });
-    others.sort(function (a, b) { return a - b; });
-    return actual.length === 2 && actual[0] === others[0] && actual[1] === others[1];
+    if (actualTiles.length !== 2) return false;
+    var a = actualTiles[0], b = actualTiles[1];
+    return (match(a, others[0]) && match(b, others[1])) || (match(a, others[1]) && match(b, others[0]));
   }
   return false;
 }
@@ -3087,7 +3105,7 @@ async function doubtPickClaimTiles(ci, tile, kind, seqBase) {
   if (p.isHuman) {
     var prevCurrent = G.current;
     G.current = 0; renderAll();
-    var picked = await narabePickTiles(ci, need, '鳴きに使う牌を ' + need + ' 枚選んでください（主張と違っても構いません＝嘘）');
+    var picked = await narabePickTiles(ci, need, '鳴きに使う牌を ' + need + ' 枚選んでください（ワイルドは代用で本当扱い。それ以外で主張と違う牌は嘘）');
     G.current = prevCurrent; renderAll();
     if (!picked || picked.length !== need) return null;
     if (kind === 'chi') {
@@ -3098,14 +3116,20 @@ async function doubtPickClaimTiles(ci, tile, kind, seqBase) {
     return picked;
   }
   var actual = null;
-  var sameTiles = p.hand.filter(function (t) { return t.t === tile.t; });
-  if (kind === 'pon' && sameTiles.length >= 2) actual = sameTiles.slice(0, 2);
-  else if (kind === 'kan' && sameTiles.length >= 3) actual = sameTiles.slice(0, 3);
+  // 本当の主張に使う牌: 実牌を優先し、足りない分はワイルドで代用する (代用も本当扱い)
+  var wildsAvail = p.hand.filter(function (t) { return t.wild; });
+  var fillWild = function (arr, n) {
+    var out = arr.slice();
+    for (var i = 0; out.length < n && i < wildsAvail.length; i++) if (out.indexOf(wildsAvail[i]) < 0) out.push(wildsAvail[i]);
+    return out.length === n ? out : null;
+  };
+  if (kind === 'pon') actual = fillWild(p.hand.filter(function (t) { return t.t === tile.t; }), 2);
+  else if (kind === 'kan') actual = fillWild(p.hand.filter(function (t) { return t.t === tile.t; }), 3);
   else if (kind === 'chi') {
     var others = [seqBase, seqBase + 1, seqBase + 2].filter(function (x) { return x !== tile.t; });
     var got = [];
     others.forEach(function (ot) { var f = p.hand.find(function (t) { return t.t === ot && got.indexOf(t) < 0; }); if (f) got.push(f); });
-    if (got.length === 2) actual = got;
+    actual = fillWild(got, 2);
   }
   if (!actual) {
     var disp = doubtDisposableTiles(p);
@@ -3415,31 +3439,38 @@ async function doubtResolveDiscard(pi, dInfo) {
   return { type: 'next' };
 }
 /* ---------- リーチの解除・重ね ---------- */
+// 重ねリーチの判定は「リーチ解除やツモ判定の後、捨てる直前」に行う (bd指示 2026-11-17)。
+// そのため解除は doubtRiichiTurnActions (ツモ判定の後) で、重ねは getDiscard の
+// 捨て牌が確定する直前に doubtMaybeStack で判定する。
+async function doubtMaybeStack(pi) {
+  var p = G.players[pi];
+  if (S.variant !== 'doubt' || !p.riichi) return;
+  // 重ねリーチ: リーチから3順ごとの自分の番 (ダウトタッグでは採用しない)
+  var since = (p.ownTurns || 0) - (p.riichiAtOwnTurn || 0);
+  if (!(since > 0 && since % 3 === 0 && p.lastStackOwnTurn !== p.ownTurns && p.score >= 1000)) return;
+  var stack = false;
+  if (p.isHuman) {
+    var ans = await modalChoice('<h3>重ねリーチをしますか？（1000点で+1翻）</h3>', [
+      { label: '重ねリーチする', value: 'yes' }, { label: 'しない', value: 'no', cls: 'sub' }
+    ]);
+    stack = ans === 'yes';
+  } else stack = playerShanten(p) === 0 || Math.random() < 0.5;
+  if (stack) {
+    p.score -= 1000; G.kyotaku += 1; p.riichiStacks = (p.riichiStacks || 0) + 1; p.stackMarkTurn = true;
+    p.lastStackOwnTurn = p.ownTurns;
+    log(p.name + ' は重ねリーチ（現在 ' + (1 + p.riichiStacks) + ' 重・+1翻）');
+    speakCall('リーチ');
+    doubtTobiCheck();
+    renderAll();
+  }
+}
 async function doubtRiichiTurnActions(pi) {
   var p = G.players[pi];
   if (p.lastDoubtActionTurn === G.totalDiscards) return;
   p.lastDoubtActionTurn = G.totalDiscards;
   p.ownTurns = (p.ownTurns || 0) + 1;
   if (!p.riichi) return;
-  // 重ねリーチ: リーチから3順ごとの自分の番 (ダウトタッグでは採用しない)
   var since = p.ownTurns - (p.riichiAtOwnTurn || 0);
-  if (S.variant === 'doubt' && since > 0 && since % 3 === 0 && p.lastStackOwnTurn !== p.ownTurns && p.score >= 1000) {
-    var stack = false;
-    if (p.isHuman) {
-      var ans = await modalChoice('<h3>重ねリーチをしますか？（1000点で+1翻）</h3>', [
-        { label: '重ねリーチする', value: 'yes' }, { label: 'しない', value: 'no', cls: 'sub' }
-      ]);
-      stack = ans === 'yes';
-    } else stack = playerShanten(p) === 0 || Math.random() < 0.5;
-    if (stack) {
-      p.score -= 1000; G.kyotaku += 1; p.riichiStacks = (p.riichiStacks || 0) + 1; p.stackMarkTurn = true;
-      p.lastStackOwnTurn = p.ownTurns;
-      log(p.name + ' は重ねリーチ（現在 ' + (1 + p.riichiStacks) + ' 重・+1翻）');
-      speakCall('リーチ');
-      if (doubtTobiCheck()) return;
-      renderAll();
-    }
-  }
   // リーチ解除: 原典では自分の番ならいつでも解除できる (テンパイしていてもよい)
   if (p.riichi) {
     var cancel = false;
