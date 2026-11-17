@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-17-74]</title>
+<title>変則麻雀 [build 2026-11-17-75]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -196,7 +196,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-17-74</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-17-75</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -1524,7 +1524,9 @@ var TILE_FILES = ['Man1','Man2','Man3','Man4','Man5','Man6','Man7','Man8','Man9'
 var TILE_FILES_RED = { 4: 'Man5-Dora', 13: 'Pin5-Dora', 22: 'Sou5-Dora' };
 var KEY_LABELS = '1234567890QWER';
 function keySelIndex(p) {
-  if (G && G.keySel !== null && G.keySel !== undefined && G.keySel < p.hand.length) return G.keySel;
+  // カーソル位置は「その手牌の枚数のとき」に決めたものだけ有効。鳴いて手牌が減ったら
+  // 無効になり、一番右 (ツモ牌があればそれ) に戻る (bd指示 2026-11-17)
+  if (G && G.keySel !== null && G.keySel !== undefined && G.keySel < p.hand.length && G.keySelLen === p.hand.length) return G.keySel;
   for (var i = 0; i < p.hand.length; i++) if (p.hand[i].id === (G && G.drawnTileId)) return i;
   return p.hand.length - 1;
 }
@@ -1692,7 +1694,7 @@ function renderAll() {
     el.addEventListener('click', function () { onHumanTileClick(Number(el.getAttribute('data-tid'))); });
     el.addEventListener('mouseenter', function () {
       if (!G || G.keySel === ci2) return;
-      G.keySel = ci2;
+      G.keySel = ci2; G.keySelLen = hp.hand.length;
       Array.prototype.forEach.call($('human-hand').children, function (c, j) { c.classList.toggle('key-selected', j === ci2); });
     });
   });
@@ -6933,6 +6935,7 @@ document.addEventListener('keydown', function (e) {
     var p0 = G.players[0];
     var nx = keySelIndex(p0) + (e.key === 'ArrowRight' ? 1 : -1);
     G.keySel = ((nx % p0.hand.length) + p0.hand.length) % p0.hand.length; // 端で反対側に回る (bd指示 2026-11-16)
+    G.keySelLen = p0.hand.length;
     renderAll();
     return;
   }
