@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-17-75]</title>
+<title>変則麻雀 [build 2026-11-18-76]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -196,7 +196,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-17-75</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-18-76</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -2020,6 +2020,15 @@ function flipKanDora() {
   if (di.t < 0) log('槓ドラ表示: ' + tileObjName(di) + '（花牌なのでドラなし）');
   else log('槓ドラ表示: ' + MJ.TILE_NAMES[di.t] + '（ドラは ' + MJ.TILE_NAMES[MJ.nextTileForDora(di.t)] + '）');
 }
+function unflipKanDora() {
+  // ダウトで槓が崩れたとき、その槓で最後に開けた槓ドラを閉じる (bd指示 2026-11-18)
+  if (!S.kandora || S.variant === 'survival') return;
+  if (G.kanDoraCount <= 0) return;
+  if (G.doraIndicators.length > 1) G.doraIndicators.pop();
+  if (G.uraIndicators.length > 1) G.uraIndicators.pop();
+  G.kanDoraCount--;
+  log('槓ドラを閉じた');
+}
 async function executeKan(pi, k) {
   speakCall('カン');
   var p = G.players[pi];
@@ -2298,7 +2307,7 @@ if (!ev) { markShapeFuriten(q, tile.t); continue; }
 if (isFuriten(q)) { continue;}
 if (q.isHuman) {
 renderAll();
-var ok = await waitHuman([{ label: 'ロン！ ' + hanText(ev) + ' ' + ev.score.total + '点', value: true}, { label: '見逃す', value: false, cls: 'sub'}]);
+var ok = await waitHuman([{ label: 'ロン！ ' + hanText(ev) + ' ' + ev.fu + '符', value: true}, { label: '見逃す', value: false, cls: 'sub'}]);
 if (!ok) { if (q.riichi) q.riichiFuriten = true; else q.tempFuriten = true; continue;}
 }
 winners.push({ pi: qi, ev: ev});
@@ -2501,7 +2510,7 @@ async function collectRons(discarderPi, dInfo) {
     if (isFuriten(q)) continue;
     if (q.isHuman) {
       renderAll();
-      var ok = await waitHuman([{ label: 'ロン！ ' + hanText(ev) + ' ' + ev.score.total + '点', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
+      var ok = await waitHuman([{ label: 'ロン！ ' + hanText(ev) + ' ' + ev.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
       if (!ok) { if (q.riichi) q.riichiFuriten = true; else q.tempFuriten = true; continue; }
     }
     wins.push({ pi: qi, ev: ev, kind: 'ron', fromPi: discarderPi, tile: tile });
@@ -2693,7 +2702,7 @@ async function drawPhaseAction(pi) {
     }
     if (p.isHuman) {
       var btns = [];
-      if (pd.ev) btns.push({ label: 'ツモ！ ' + hanText(pd.ev) + ' ' + pd.ev.score.total + '点', value: 'tsumo' });
+      if (pd.ev) btns.push({ label: 'ツモ！ ' + hanText(pd.ev) + ' ' + pd.ev.fu + '符', value: 'tsumo' });
       pd.kans.forEach(function (k, i) { btns.push({ label: (k.kind === 'ankan' ? '暗槓 ' : '加槓 ') + MJ.TILE_NAMES[k.tile], value: 'kan' + i }); });
       btns.push({ label: 'そのまま', value: 'none', cls: 'sub' });
       var ans = await waitHuman(btns);
@@ -2748,7 +2757,7 @@ async function roundExchange() {
     var ev = evalWin(wp, rt.t, { tsumo: true, winningRed: rt.red });
     if (!ev) continue;
     if (wp.isHuman) {
-      var ok = await waitHuman([{ label: 'ツモ！（回ってきた牌）' + hanText(ev) + ' ' + ev.score.total + '点', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
+      var ok = await waitHuman([{ label: 'ツモ！（回ってきた牌）' + hanText(ev) + ' ' + ev.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
       if (!ok) continue;
     }
     preWins.push({ pi: wi, ev: ev, kind: 'tsumo', tile: rt });
@@ -2846,7 +2855,7 @@ async function roundFourdraw() {
     if (pd.ev) {
       var declare = true;
       if (p.isHuman) {
-        var ok = await waitHuman([{ label: 'ツモ宣言する！ ' + hanText(pd.ev) + ' ' + pd.ev.score.total + '点', value: true }, { label: '宣言しない', value: false, cls: 'sub' }]);
+        var ok = await waitHuman([{ label: 'ツモ宣言する！ ' + hanText(pd.ev) + ' ' + pd.ev.fu + '符', value: true }, { label: '宣言しない', value: false, cls: 'sub' }]);
         declare = !!ok;
       }
       if (declare) { preWins.push({ pi: pi, ev: pd.ev, kind: 'tsumo', tile: kept }); log(p.name + ' はツモ宣言'); }
@@ -2988,6 +2997,7 @@ async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
     }
     if (kActAsLie) {
       owner.score -= amount; doubter.score += amount;
+      if (meld.kanDoraFlipped) { unflipKanDora(); meld.kanDoraFlipped = false; }
       if (addedTile) { meld.tiles.splice(meld.tiles.indexOf(addedTile), 1); owner.hand.push(addedTile); sortHand(owner); }
       meld.kind = 'tri'; meld.claimKind = 'pon'; meld.kakanHidden = false; meld.kakanTileId = null; meld.uso = false;
       log(owner.name + ' の加槓は' + (kTruth ? '本当だったが嘘として処理され' : '嘘だった') + '、' + doubter.name + ' へ ' + amount + '点。加槓は取り消された');
@@ -3034,6 +3044,7 @@ function doubtUndoMeld(ownerPi, meld) {
   var ix = p.melds.indexOf(meld);
   if (ix < 0) return;
   p.melds.splice(ix, 1);
+  if (meld.claimKind === 'kan' && meld.kanDoraFlipped) { unflipKanDora(); meld.kanDoraFlipped = false; }
   if (p.kuikae && p.kuikae.meld === meld) p.kuikae = null;
   // 取り消し: メルドの牌は (取った牌も含めて) 全部、鳴いた人の手牌に戻る
   var tiles = meld.tiles.slice();
@@ -3127,6 +3138,7 @@ async function doubtExecuteKakan(pi, meldIndex, tileObj) {
   G.anyCall = true;
   G.players.forEach(function (x) { x.ippatsu = false; });
   flipKanDora();
+  meld.kanDoraFlipped = true;
   G.rinshanFlag = true;
   renderAll();
   // 鳴き直後と同じ即ダウト窓 (捨てる前なら2000点)
@@ -3331,7 +3343,7 @@ async function doubtExecuteClaim(ci, fromPi, tile, kind, seqBase, opts) {
   }
   await doubtImmediateWindow(ci, meld);
   var survived = p.melds.includes(meld);
-  if (survived && kind === 'kan') { flipKanDora(); G.rinshanFlag = true; }
+  if (survived && kind === 'kan') { flipKanDora(); meld.kanDoraFlipped = true; G.rinshanFlag = true; }
   // 取り消された場合も、鳴いた人は (手牌に戻った牌を含めて) そのまま捨てる
   return { type: 'call', player: ci, meld: meld, kind: kind, needsDraw: survived && kind === 'kan', rinshan: survived && kind === 'kan' };
 }
@@ -3458,7 +3470,7 @@ async function doubtCallPhase(pi, tile) {
     await doubtImmediateWindow(final.pi, final.meld);
     var fp = G.players[final.pi];
     var survived = fp.melds.includes(final.meld);
-    if (survived && final.kind === 'kan') { flipKanDora(); G.rinshanFlag = true; }
+    if (survived && final.kind === 'kan') { flipKanDora(); final.meld.kanDoraFlipped = true; G.rinshanFlag = true; }
     return { type: 'call', player: final.pi, needsDraw: survived && final.kind === 'kan', rinshan: survived && final.kind === 'kan' };
   }
   return null;
@@ -3561,7 +3573,7 @@ async function doubtRonPhase(pi, tile, houtei) {
     if (q.isHuman) {
       renderAll();
       var shownEv = trueEv || fakeEv;
-      wants = await waitHuman([{ label: 'ロン！ ' + hanText(shownEv) + ' ' + shownEv.score.total + '点', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
+      wants = await waitHuman([{ label: 'ロン！ ' + hanText(shownEv) + ' ' + shownEv.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
       if (!wants) { markShapeFuriten(q, tile.t); continue; }
     } else {
       wants = trueEv ? true : Math.random() < 0.75;
@@ -3573,7 +3585,7 @@ async function doubtRonPhase(pi, tile, houtei) {
       renderAll();
       var shownEvD = trueEv || fakeEv;
       var ansD = await modalChoice('<h3>' + q.name + ' がロンと宣言しました！</h3>' +
-        '<p>あなたの捨て牌 ' + MJ.TILE_NAMES[tile.t] + ' に対するロンです（' + hanText(shownEvD) + ' ' + shownEvD.score.total + '点）。<br>嘘だと思いますか？</p>',
+        '<p>あなたの捨て牌 ' + MJ.TILE_NAMES[tile.t] + ' に対するロンです（' + hanText(shownEvD) + ' ' + shownEvD.fu + '符）。<br>嘘だと思いますか？</p>',
         [{ label: 'ダウトする！（嘘なら点数を逆にもらえる）', value: true }, { label: 'ダウトしない（通常の支払い）', value: false, cls: 'sub' }]);
       doubtIt = ansD === true;
     } else {
@@ -4143,7 +4155,7 @@ async function narabeResolveMeldRon(pi, tiles) {
     if (!bestEv) continue;
     if (q.isHuman) {
       renderAll();
-      var ok = await waitHuman([{ label: 'ロン！ ' + hanText(bestEv) + ' ' + bestEv.score.total + '点', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
+      var ok = await waitHuman([{ label: 'ロン！ ' + hanText(bestEv) + ' ' + bestEv.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
       if (!ok) { if (q.riichi) q.riichiFuriten = true; else q.tempFuriten = true; continue; }
     }
     winners.push({ pi: qi, ev: bestEv, tile: bestTile });
@@ -4743,7 +4755,7 @@ async function chainRiichiTurn(pi) {
   if (ev) {
     var declare = true;
     if (p.isHuman) {
-      var ans = await modalChoice('<h3>ツモ！</h3><p>' + hanText(ev) + ' ' + ev.score.total + '点</p>',
+      var ans = await modalChoice('<h3>ツモ！</h3><p>' + hanText(ev) + ' ' + ev.fu + '符</p>',
         [{ label: 'ツモする', value: 'y' }, { label: '交換して続ける', value: 'n' }]);
       declare = ans === 'y';
     }
@@ -4768,13 +4780,13 @@ async function chainAskDeclaration(win) {
     // プレイヤーならプレイヤーが決める (bd指示 2026-11-15: CPUパートナーが先に上がった場合も)
     var head;
     if (p.isHuman) {
-      head = '<h3>' + p.name + ' の上がり（' + hanText(win.ev) + ' ' + win.ev.score.total + '点）</h3><p>パートナーと相談: チェインしますか？</p>';
+      head = '<h3>' + p.name + ' の上がり（' + hanText(win.ev) + ' ' + win.ev.fu + '符）</h3><p>パートナーと相談: チェインしますか？</p>';
     } else {
       var sh = playerShanten(partner);
       var myInfo = sh <= 0
         ? 'あなたはテンパイ（待ち: ' + playerWaits(partner).map(function (t) { return MJ.TILE_NAMES[t]; }).join('・') + '）'
         : 'あなたはあと ' + sh + ' シャンテン';
-      head = '<h3>パートナー（' + p.name + '）の上がり（' + hanText(win.ev) + ' ' + win.ev.score.total + '点）</h3>' +
+      head = '<h3>パートナー（' + p.name + '）の上がり（' + hanText(win.ev) + ' ' + win.ev.fu + '符）</h3>' +
         '<p>パートナーと相談して決めてください: チェインしますか？</p>' +
         '<p>' + myInfo + '。チェインすると ' + p.name + ' は抜けて、あなたの上がりで合算されます。</p>';
     }
@@ -4790,7 +4802,7 @@ async function chainAskRejection(win, decl) {
   var winner = G.players[win.pi];
   if (oppTeam.some(function (i) { return G.players[i].isHuman; })) {
     var ans = await modalChoice('<h3>相手チームの宣言: ' + (decl === 'chain' ? 'チェイン' : 'ストップ') + '</h3><p>' +
-      winner.name + ' の ' + hanText(win.ev) + ' ' + win.ev.score.total + '点。却下にはチーム2人がそれぞれ2000点を ' + winner.name + ' に支払います。</p>',
+      winner.name + ' の ' + hanText(win.ev) + ' ' + win.ev.fu + '符。却下にはチーム2人がそれぞれ2000点を ' + winner.name + ' に支払います。</p>',
       [{ label: '却下する（各2000点）', value: 'reject' }, { label: '認める', value: 'accept' }]);
     return ans === 'reject';
   }
@@ -5054,7 +5066,7 @@ async function unoResolveRons(discarderPi, tiles) {
     }
     if (!bestEv) continue;
     if (q.isHuman) {
-      var ans = await modalChoice('<h3>ロンできます</h3><p>' + hanText(bestEv) + ' ' + bestEv.score.total + '点（' + MJ.TILE_NAMES[bestType] + '）</p>',
+      var ans = await modalChoice('<h3>ロンできます</h3><p>' + hanText(bestEv) + ' ' + bestEv.fu + '符（' + MJ.TILE_NAMES[bestType] + '）</p>',
         [{ label: 'ロン！', value: 'y' }, { label: 'パス', value: 'n' }]);
       if (ans !== 'y') { if (q.riichi) q.riichiFuriten = true; else q.tempFuriten = true; continue; }
     }
@@ -5252,7 +5264,7 @@ async function unoTurn(pi) {
     if (ev) {
       var declare = true;
       if (p.isHuman) {
-        var ans = await modalChoice('<h3>ツモ！</h3><p>' + hanText(ev) + ' ' + ev.score.total + '点</p>',
+        var ans = await modalChoice('<h3>ツモ！</h3><p>' + hanText(ev) + ' ' + ev.fu + '符</p>',
           [{ label: 'ツモする', value: 'y' }, { label: 'やめる', value: 'n' }]);
         declare = ans === 'y';
       }
@@ -5595,7 +5607,7 @@ async function riichiTurn51(pi) {
       p.hand.pop();
       if (ev) {
         if (p.isHuman) {
-          var ok = await waitHuman([{ label: 'ツモ！ ' + hanText(ev) + ' ' + ev.score.total + '点', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
+          var ok = await waitHuman([{ label: 'ツモ！ ' + hanText(ev) + ' ' + ev.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
           if (!ok) { log(p.name + ' は中央の当たり牌を見逃した'); return {}; }
         }
         G.center51 = G.center51.filter(function (t) { return t.id !== winTile.id; });
@@ -5653,7 +5665,7 @@ async function humanExchange51(pi) {
     var kans = kanOptions(pi);
     while (true) {
       var btns = [];
-      if (ev) btns.push({ label: 'ツモ！ ' + hanText(ev) + ' ' + ev.score.total + '点', value: 'tsumo' });
+      if (ev) btns.push({ label: 'ツモ！ ' + hanText(ev) + ' ' + ev.fu + '符', value: 'tsumo' });
       kans.forEach(function (k, i) { btns.push({ label: (k.kind === 'ankan' ? '暗槓 ' : '加槓 ') + MJ.TILE_NAMES[k.tile], value: 'kan' + i }); });
       log('出す牌を手牌から選んでください');
       var pick = await waitPutOrButton51(btns);
@@ -6077,7 +6089,7 @@ async function sashiDiscardWindow(pi, dInfo) {
         var take = false;
         if (q.isHuman) {
           renderAll();
-          take = await waitHuman([{ label: 'ロン！（' + (q.winGroups.length + 1) + '組目）' + hanText(ev) + ' ' + ev.score.total + '点', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
+          take = await waitHuman([{ label: 'ロン！（' + (q.winGroups.length + 1) + '組目）' + hanText(ev) + ' ' + ev.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
         } else take = true;
         if (take) {
           var drec = G.players[pi].discards[G.players[pi].discards.length - 1];
