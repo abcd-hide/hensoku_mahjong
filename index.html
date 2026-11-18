@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-18-77]</title>
+<title>変則麻雀 [build 2026-11-18-78]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -196,7 +196,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-18-77</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-18-78</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -1532,7 +1532,7 @@ function keySelIndex(p) {
 }
 function tileFileName(t, red) { if (red && TILE_FILES_RED[t]) return TILE_FILES_RED[t]; return TILE_FILES[t]; }
 function tileSrc(file) { return (typeof TILE_SRC !== 'undefined' && TILE_SRC[file]) ? TILE_SRC[file] : 'tiles/' + file; }
-function meldTilesHTML(m, small, ownerView, ownerPi) {
+function meldTilesHTML(m, small, ownerView, ownerPi, reveal) {
   // 暗槓 (門前槓) は真ん中2枚を裏向きに表示する (従来通り)
   if (m.kind === 'kan' && !m.open && !m.hidden) {
     return m.tiles.map(function (t, i) { return tileHTML(t, { small: !!small, back: i === 1 || i === 2 }); }).join('');
@@ -1545,7 +1545,7 @@ function meldTilesHTML(m, small, ownerView, ownerPi) {
     if (m.kind === 'kan') return rel === 3 ? 0 : rel === 2 ? 1 : 3;
     return 0;
   }
-  if (m.hidden && !ownerView) {
+  if (m.hidden && !ownerView && !reveal) {
     // 伏せポン (ダウト): 原典の「重ね」形 — 下に裏向き2枚、上に鳴いた牌を横向きに重ね、
     // その位置 (上家=左・対面=真ん中・下家=右) で鳴き元がわかる
     if (m.kind === 'tri') {
@@ -1576,7 +1576,7 @@ function meldTilesHTML(m, small, ownerView, ownerPi) {
     tiles.splice(Math.min(calledPos(), tiles.length), 0, called);
   }
   return tiles.map(function (t) {
-    if (m.kakanHidden && t.id === m.kakanTileId) return tileHTML(t, { small: !!small, back: true }); // 伏せた加槓牌
+    if (m.kakanHidden && !reveal && t.id === m.kakanTileId) return tileHTML(t, { small: !!small, back: true }); // 伏せた加槓牌 (結果画面では公開する)
     return tileHTML(t, { small: !!small, rot: !!called && t === called });
   }).join('');
 }
@@ -6393,8 +6393,9 @@ return { type: 'call', player: ci, needsDraw: false};
 
 /* ---------- 上がり処理 ---------- */
 function handTilesHTML(p, excludeId) {
+  // 結果画面用: 伏せた副露・伏せた加槓牌も含め、全て公開して表示する (bd指摘 2026-11-18)
   return p.hand.filter(function (t) { return t.id !== excludeId; }).map(function (t) { return tileHTML(t, { small: true }); }).join('') +
-    p.melds.map(function (m) { return ' <span class="meld">' + meldTilesHTML(m, true, false, G.players.indexOf(p)) + '</span>'; }).join('');
+    p.melds.map(function (m) { return ' <span class="meld">' + meldTilesHTML(m, true, false, G.players.indexOf(p), true) + '</span>'; }).join('');
 }
 function doraCountInEv(ev, name) {
   var e = ev.yaku.find(function (y) { return y.name === name; });
