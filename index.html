@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-18-76]</title>
+<title>変則麻雀 [build 2026-11-18-77]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -196,7 +196,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-18-76</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-18-77</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -2990,15 +2990,25 @@ async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
     var kActAsLie = !kTruth;
     if (kTruth && owner.isHuman) {
       var kAns = await modalChoice('<h3>' + doubter.name + ' があなたの加槓をダウトしました！</h3>' +
-        '<p>この加槓は本当です。公開すれば ' + amount + '点もらえます。<br>代わりに、' + amount + '点を支払って加槓を取り消し、牌を手に戻すこともできます。</p>',
+        '<p>この加槓は本当です。公開すれば ' + amount + '点もらえます。<br>代わりに、' + amount + '点を支払って加槓を取り消すこともできます（加えた牌は' + (immediate ? '手に戻ります' : '河に捨てられます') + '）。</p>',
         [{ label: '本当だと公開する（' + amount + '点もらう）', value: 'open' },
-         { label: amount + '点払って加槓を取り消す（手に戻す）', value: 'fake', cls: 'sub' }]);
+         { label: amount + '点払って加槓を取り消す', value: 'fake', cls: 'sub' }]);
       kActAsLie = kAns === 'fake';
     }
     if (kActAsLie) {
       owner.score -= amount; doubter.score += amount;
       if (meld.kanDoraFlipped) { unflipKanDora(); meld.kanDoraFlipped = false; }
-      if (addedTile) { meld.tiles.splice(meld.tiles.indexOf(addedTile), 1); owner.hand.push(addedTile); sortHand(owner); }
+      if (addedTile) {
+        meld.tiles.splice(meld.tiles.indexOf(addedTile), 1);
+        // 即ダウト (所有者が捨て直し中) なら手牌に戻す。後からのダウトなら所有者は休止状態の
+        // ため、加えた牌は河に捨てて枚数を合わせる (手牌に戻すと1枚多くなり二度と上がれない)
+        if (immediate) { owner.hand.push(addedTile); sortHand(owner); }
+        else {
+          owner.discards.push({ tile: addedTile, riichi: false, protected: false, called: false });
+          owner.discardTypes.push(addedTile.t);
+          log('加槓に使った牌（' + tileObjName(addedTile) + '）は河に捨てられた');
+        }
+      }
       meld.kind = 'tri'; meld.claimKind = 'pon'; meld.kakanHidden = false; meld.kakanTileId = null; meld.uso = false;
       log(owner.name + ' の加槓は' + (kTruth ? '本当だったが嘘として処理され' : '嘘だった') + '、' + doubter.name + ' へ ' + amount + '点。加槓は取り消された');
     } else {
@@ -3022,7 +3032,7 @@ async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
   if (actAsLie) {
     owner.score -= amount; doubter.score += amount;
     log(owner.name + ' の鳴きは' + (truth ? '本当だったが嘘として処理され' : '嘘だった') + '、' + doubter.name + ' へ ' + amount + '点。鳴きは取り消された');
-    doubtUndoMeld(ownerPi, meld);
+    doubtUndoMeld(ownerPi, meld, immediate);
   } else {
     doubter.score -= amount; owner.score += amount;
     meld.hidden = false; meld.revealed = true;
@@ -3039,7 +3049,7 @@ function doubtTobiCheck() {
   endMatch('トビ終了: ' + G.players[loser].name + ' が0点未満になった（ダウトの点数移動）');
   return true;
 }
-function doubtUndoMeld(ownerPi, meld) {
+function doubtUndoMeld(ownerPi, meld, immediate) {
   var p = G.players[ownerPi];
   var ix = p.melds.indexOf(meld);
   if (ix < 0) return;
@@ -3047,8 +3057,11 @@ function doubtUndoMeld(ownerPi, meld) {
   if (meld.claimKind === 'kan' && meld.kanDoraFlipped) { unflipKanDora(); meld.kanDoraFlipped = false; }
   if (p.kuikae && p.kuikae.meld === meld) p.kuikae = null;
   // 取り消し: メルドの牌は (取った牌も含めて) 全部、鳴いた人の手牌に戻る
+  // ただし槓の「余分な1枚」の扱いはタイミングで変える: 即ダウトで崩れた場合は所有者が
+  // この後すぐ捨てるので全枚手牌に戻す。後からのダウトで崩れた場合は所有者が休止状態の
+  // ため、1枚を河に捨てて枚数を合わせる (どちらを欠いても手牌が1枚ずれ、二度と上がれなくなる)
   var tiles = meld.tiles.slice();
-  if (meld.claimKind === 'kan') {
+  if (meld.claimKind === 'kan' && !immediate) {
     var dropIx = Math.floor(Math.random() * tiles.length);
     var drop = tiles.splice(dropIx, 1)[0];
     p.discards.push({ tile: drop, riichi: false, protected: false, called: false });
