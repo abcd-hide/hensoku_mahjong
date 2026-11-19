@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-19-95]</title>
+<title>変則麻雀 [build 2026-11-19-96]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -204,7 +204,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-19-95</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-19-96</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -1002,14 +1002,29 @@ function evalHand(input) {
     for (var i = start; i < pool.length; i++) { cur.push(pool[i]); gen(i, cur); cur.pop(); }
   })(0, []);
   var results = [];
+  // 上がり牌自体がワイルドのとき (wildWin) は、そのワイルドが化けた牌を上がり牌として
+  // 待ちの形 (両面/カンチャン/単騎) を判定し直す。化けた先と無関係に判定すると、
+  // カンチャン・単騎でも待ち符0になり平和が誤ってつく (bd指摘 2026-11-19)。
+  function evalCombo(c2, combo, redAdj) {
+    var winTypes = [null];
+    if (input.wildWin) {
+      winTypes = [];
+      combo.forEach(function (t) { if (winTypes.indexOf(t) < 0) winTypes.push(t); });
+      if (!winTypes.length) winTypes = [null];
+    }
+    winTypes.forEach(function (wt) {
+      var ctx2 = Object.assign({}, input.ctx, { redCount: redAdj });
+      if (wt !== null) ctx2.winningTile = wt;
+      var r = evalStandard({ counts: c2, melds: input.melds, ctx: ctx2 });
+      if (r) { r.substitution = combo.slice(); results.push(r); }
+    });
+  }
   combos.forEach(function (combo) {
     var c2 = input.counts.slice();
     combo.forEach(function (t) { c2[t]++; });
     var redAdj = input.ctx.redCount || 0;
     combo.forEach(function (t) { if (t === input.wildFace) redAdj += (input.wildFaceRed ? 1 : 0); });
-    var inp2 = { counts: c2, melds: input.melds, ctx: Object.assign({}, input.ctx, { redCount: redAdj }) };
-    var r = evalStandard(inp2);
-    if (r) { r.substitution = combo.slice(); results.push(r); }
+    evalCombo(c2, combo, redAdj);
   });
   if (!results.length) {
     // 列挙上限で勝ち置換を取りこぼした場合の保険: ジョーカー分解の置換で評価する (build32)
@@ -1017,9 +1032,7 @@ function evalHand(input) {
     jokerSubst.forEach(function (t) { c3[t]++; });
     var redAdj2 = input.ctx.redCount || 0;
     jokerSubst.forEach(function (t) { if (t === input.wildFace) redAdj2 += (input.wildFaceRed ? 1 : 0); });
-    var inp3 = { counts: c3, melds: input.melds, ctx: Object.assign({}, input.ctx, { redCount: redAdj2 }) };
-    var r3 = evalStandard(inp3);
-    if (r3) { r3.substitution = jokerSubst.slice(); results.push(r3); }
+    evalCombo(c3, jokerSubst, redAdj2);
   }
   if (!results.length) return null;
   if (input.wildPenalty) {
@@ -1457,8 +1470,10 @@ function evalWin(p, winningTileType, opts) {
   // ダウト: 公開された鳴きの中のワイルドはペナルティが確定する。伏せた鳴きの中は数えない (bd確定 2026-11-17)
   var revealedWilds = 0;
   if (isDoubtVariant()) p.melds.forEach(function (m) { if (m.revealed) m.tiles.forEach(function (t) { if (t.wild && !(m.kakanHidden && t.id === m.kakanTileId)) revealedWilds++; }); });
+  // ツモ牌自体がワイルドなら、化けた牌を上がり牌として待ちを判定させる (build96)
+  var winTileWild = isTsumo && !!(G.lastDrawn && (G.lastDrawn.wild || G.lastDrawn.t < 0) && p.hand.some(function (t) { return t.id === G.lastDrawn.id; }));
   var r = MJ.evalHand({ counts: evalCounts, melds: evalMelds, ctx: ctx,
-    wildCount: evalWild, wildFace: evalWildFace, wildFaceRed: true,
+    wildCount: evalWild, wildFace: evalWildFace, wildFaceRed: true, wildWin: winTileWild,
     wildMode: wildMode, wildPenalty: S.variant === 'allmighty' || isDoubtVariant(),
     yakumanBase: isDoubtVariant() ? 10 : 13,
     penaltyCredit: isDoubtVariant() ? (p.riichiStacks || 0) : 0,
