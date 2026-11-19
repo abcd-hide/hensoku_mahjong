@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-19-92]</title>
+<title>変則麻雀 [build 2026-11-19-93]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -136,9 +136,10 @@ legend { font-weight: bold; padding: 0 6px; }
 #modal-box { background: #f6f2e4; color: #222; border-radius: 12px; padding: 18px; max-width: 680px; width: 94%; max-height: 82vh; max-height: 82dvh; overflow-y: auto; overflow-x: hidden; }
 /* 場を見るモード: 結果ポップアップを下部の細いバーに畳んで場全体を見えるようにする */
 #modal.board-view { background: transparent; pointer-events: none; align-items: flex-end; padding-bottom: 10px; }
-#modal.board-view #modal-box { pointer-events: auto; padding: 8px 12px; }
+#modal.board-view #modal-box { pointer-events: auto; padding: 8px 12px; width: auto; max-width: 96vw; }
 #modal.board-view #modal-result { display: none; }
-#modal.board-view .modal-btns { margin-top: 0; }
+#modal.board-view .modal-btns { margin-top: 0; flex-wrap: nowrap; gap: 6px; }
+#modal.board-view .modal-btns button { flex: 1 1 0; min-width: 0; font-size: 13px; padding: 6px 4px; line-height: 1.25; }
 #modal-box h3 { margin-top: 0; }
 #modal-box .tile { cursor: default; }
 .modal-btns { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
@@ -202,7 +203,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-19-92</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-19-93</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -1847,11 +1848,24 @@ function choiceButtonsNow() {
   }
   return null;
 }
-function hideModal() { $('modal').classList.add('hidden'); $('modal').classList.remove('board-view'); }
+function hideModal() { $('modal').classList.add('hidden'); $('modal').classList.remove('board-view'); fitBoardToView(false); }
+/* 場を見るモードでは、バーとヘッダに隠れないよう盤面全体が収まる大きさに縮める (bd報告 2026-11-19) */
+function fitBoardToView(on) {
+  var t = $('table'); if (!t) return;
+  if (!on) { t.style.width = ''; return; }
+  var vv = window.visualViewport;
+  var vh = vv ? vv.height : window.innerHeight;
+  var box = $('modal-box');
+  var barH = box ? box.getBoundingClientRect().height + 20 : 80;
+  var headH = t.getBoundingClientRect().top;
+  var avail = Math.max(170, Math.floor(vh - headH - barH - 8));
+  if (avail < t.getBoundingClientRect().width) t.style.width = avail + 'px';
+}
 function toggleBoardView() {
   var on = $('modal').classList.toggle('board-view');
   var b = $('btn-board-view');
   if (b) b.textContent = on ? (b.getAttribute('data-back') || '結果を見る') : '場を見る';
+  fitBoardToView(on);
 }
 function modalChoice(html, buttons) {
   showModal('<div id="modal-result">' + html + '</div><div class="modal-btns"><button id="btn-board-view" class="sub" data-back="判断に戻る">場を見る</button>' + buttons.map(function (b, i) { return '<button data-mi="' + i + '"' + (b.cls ? ' class="' + b.cls + '"' : '') + '>' + b.label + '</button>'; }).join('') + '</div>');
@@ -7043,7 +7057,7 @@ function syncNoDoubtBtn() { var b = $('btn-nodoubt'); if (b) b.textContent = '�
 $('btn-nodoubt').addEventListener('click', function () { S.noDoubtClaim = !S.noDoubtClaim; saveSettings(); syncNoDoubtBtn(); log('ダウト主張なしフラグを' + (S.noDoubtClaim ? 'ONにした（ダウトの主張は自動でパスします）' : 'OFFにした')); });
 syncNoDoubtBtn();
 $('btn-log-toggle').addEventListener('click', function () { var sc = $('side-col'); sc.classList.toggle('log-open'); var open = sc.classList.contains('log-open'); this.textContent = open ? '📋 ログを隠す' : '📋 ログを表示'; if (open) $('log').scrollIntoView({ block: 'nearest' }); });
-if (window.visualViewport) window.visualViewport.addEventListener('resize', function () { var m = $('modal'); if (m && !m.classList.contains('hidden')) fitModalViewport(); });
+if (window.visualViewport) window.visualViewport.addEventListener('resize', function () { var m = $('modal'); if (m && !m.classList.contains('hidden')) { fitModalViewport(); if (m.classList.contains('board-view')) fitBoardToView(true); } });
 /* キーボード操作: 1-9,0,Q,W,E,R = 左から数えた牌を切る / Enter = 結果表示の「次へ」 */
 document.addEventListener('keydown', function (e) {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
