@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-19-93]</title>
+<title>変則麻雀 [build 2026-11-19-94]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -203,7 +203,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-19-93</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-19-94</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -3706,14 +3706,9 @@ async function doubtRonPhase(pi, tile, houtei) {
       var ev2 = evalWin(q, w, { tsumo: false, houtei: houtei, winningRed: false, firstTurn: !q.hasDrawn && G.totalDiscards <= 4 });
       if (ev2 && (!fakeEv || ev2.score.total > fakeEv.score.total)) fakeEv = ev2;
     }
-    if (!fakeEv && hasMatchingWait && !fakeFuriten) {
-      // 一致する待ちでは役がつかない (例: 待ち 1,4萬で 1萬だと役が消える) 場合でも、
-      // 手自体が別の待ちで上がれるなら嘘ロンは宣言できる。値は実際の待ちの評価で決める。
-      for (var wi2 = 0; wi2 < waits.length; wi2++) {
-        var ev3 = evalWin(q, waits[wi2], { tsumo: false, houtei: houtei, winningRed: false, firstTurn: !q.hasDrawn && G.totalDiscards <= 4 });
-        if (ev3 && (!fakeEv || ev3.score.total > fakeEv.score.total)) fakeEv = ev3;
-      }
-    }
+    // 嘘の待ち自体で役がつかない場合は嘘ロンできない (bd決定 2026-11-19 A案「宣言を厳しく」)。
+    // 以前は別の待ちの評価を借りるフォールバックがあったが、その借り物の役 (平和など) が
+    // 宣言した待ちのものとして精算されるのはおかしいため廃止した。
     if (!trueEv && !fakeEv) { markShapeFuriten(q, tile.t); continue; }
     var wants = false;
     if (q.isHuman) {
