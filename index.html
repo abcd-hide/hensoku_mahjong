@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-19-80]</title>
+<title>変則麻雀 [build 2026-11-19-81]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -196,7 +196,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-19-80</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-19-81</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -968,7 +968,18 @@ function evalHand(input) {
   // penaltyExtra: 手牌の代用には使えないがペナルティだけ効くワイルド枚数
   // (ダウトで公開された鳴きの中のワイルド。伏せている間は数えない)
   var pen = wild + (input.penaltyExtra || 0);
-  if (!wild && !pen) return evalStandard(input);
+  // yakumanBase: 単独役満を何翻扱いにするか (ダウトは10、bd指示 2026-11-19。通常は13)
+  var yBaseIn = input.yakumanBase || 13;
+  if (!wild && !pen) {
+    var r0 = evalStandard(input);
+    if (r0 && r0.yakumanCount > 0) {
+      // 役満の翻数を正規化する (evalStandard は役満の翻を 0 で返すため)。
+      // 単独役満は yakumanBase (ダウト10/通常13)、ダブル以上は13×数。
+      var yHan = r0.yakumanCount === 1 ? yBaseIn : 13 * r0.yakumanCount;
+      r0 = Object.assign({}, r0, { han: yHan, label: HAN_LABEL(yHan, r0.yakumanCount, input.ctx.settings || {}) });
+    }
+    return r0;
+  }
   // 高速な事前判定: ジョーカー分解で上がれない手は列挙しない (build32)
   var jokerSubst = decomposeJoker(input.counts, 4 - (input.melds ? input.melds.length : 0), wild);
   if (!jokerSubst) return null;
@@ -1008,9 +1019,11 @@ function evalHand(input) {
     results.forEach(function (r) {
       if (r.yakumanCount > 0) {
         // 役満は13翻扱いとしてペナルティを適用する (ダブル役満は26翻扱い) — 2026-08-08 ユーザー指示
-        var eff = r.yakumanCount * 13 - pen;
+        // ダウトでは単独役満を10翻扱いにする (yakumanBase、bd指示 2026-11-19)。ダブル以上は従来通り
+        var yBase = (r.yakumanCount === 1) ? yBaseIn : 13;
+        var eff = r.yakumanCount * yBase - pen;
         if (eff < 1) return;
-        var ymOut = Math.floor(eff / 13);
+        var ymOut = Math.floor(eff / yBase);
         var nr = Object.assign({}, r, { han: eff, wildPenaltyApplied: pen });
         if (ymOut > 0) {
           nr.yakumanCount = ymOut;
@@ -1416,6 +1429,7 @@ function evalWin(p, winningTileType, opts) {
   var r = MJ.evalHand({ counts: evalCounts, melds: evalMelds, ctx: ctx,
     wildCount: evalWild, wildFace: evalWildFace, wildFaceRed: true,
     wildMode: wildMode, wildPenalty: S.variant === 'allmighty' || isDoubtVariant(),
+    yakumanBase: isDoubtVariant() ? 10 : 13,
     penaltyCredit: isDoubtVariant() ? (p.riichiStacks || 0) : 0,
     penaltyExtra: revealedWilds });
   if (isDoubtVariant() && r) {
@@ -2928,6 +2942,8 @@ function isDoubtVariant() { return S.variant === 'doubt' || S.variant === 'gdoub
        本当の待ち以外の見逃しはフリテンにならない。
    見破られなかった嘘 (鳴き+ロン) が3つで満貫、4つで役満 (10翻扱い・オールマイティで減る)、
    5つでダブル役満 (26翻・影響なし)。通常の上がりの方が高ければそちらを優先する。
+   通常の役満も10翻扱い (bd指示 2026-11-19 でウーソー以外にも拡張)。ワイルドで減って
+   10翻を切ると通常の翻数計算になる。ダブル役満は26翻のまま減らない。数え役満は13翻。
    上がり判定は伏せた鳴きの主張ではなく全牌の実物で行う (嘘の鳴きは面子として扱わない)。
    追加ルール (ダウトロン固定2000・割れ目) は採用しない。 */
 function doubtMatchType(waitType, discardType) {
