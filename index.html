@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-19-82]</title>
+<title>変則麻雀 [build 2026-11-19-83]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -196,7 +196,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-19-82</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-19-83</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -3559,6 +3559,14 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
         '<div class="win-ron-banner">' + q.name + ' のロン宣言は嘘でした ― ' + discarder.name + ' の ' + MJ.TILE_NAMES[tile.t] + '</div>' +
         '<div class="win-hand">' + handTilesHTML(q) + '</div>' +
         '<p>' + q.name + ' の実際の待ち: ' + (waitsF.length ? waitsF.map(function (t) { return MJ.TILE_NAMES[t]; }).join('、') : 'なし（ノーテン）') + '</p>' +
+        // 嘘ロンが見抜かれたときも、何の役でいくらの嘘ロンだったか内訳を出す (bd指示 2026-11-19)
+        '<p>嘘ロンの内訳（実際の待ちで上がっていた場合）:</p>' +
+        '<table class="yaku-table">' + evF.yaku.map(function (y) {
+          return '<tr><td>' + y.name + '</td><td class="yhan">' + (y.yakuman ? '役満' : y.han + '翻') + '</td></tr>';
+        }).join('') + '</table>' +
+        '<p class="win-total"><b>' + (evF.yakumanCount ? (evF.label || MJ.HAN_LABEL(evF.han, evF.yakumanCount, {})) + ' ' + evF.score.total + '点'
+          : evF.han + '翻 ' + evF.fu + '符' + (evF.label ? ' ' + evF.label : '') + ' ' + evF.score.total + '点') + '</b>' +
+          (evF.wildPenaltyApplied ? '（オールマイティ ' + evF.wildPenaltyApplied + '枚で -' + evF.wildPenaltyApplied + '翻済み）' : '') + '</p>' +
         '<p>' + q.name + ' が ' + discarder.name + ' に ' + evF.score.total + '点を支払いました（嘘ロンの逆払い）</p>' +
         '<p>この局はこれで終了します</p>';
       // 連荘判定は「ロンしたプレイヤー」側にある (見破った側ではない)
@@ -3628,7 +3636,10 @@ async function doubtRonPhase(pi, tile, houtei) {
     if (q.isHuman) {
       renderAll();
       var shownEv = trueEv || fakeEv;
-      wants = await waitHuman([{ label: 'ロン！ ' + hanText(shownEv) + ' ' + shownEv.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
+      // ボタンの文言で宣言の種類が分かるようにする (bd指示 2026-11-19):
+      // 嘘だけなら「ダウトロン」、本物・嘘の両方できるなら「選べるロン」
+      var ronWord = (trueEv && fakeEv) ? '選べるロン！ ' : (fakeEv ? 'ダウトロン！ ' : 'ロン！ ');
+      wants = await waitHuman([{ label: ronWord + hanText(shownEv) + ' ' + shownEv.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
       if (!wants) { markShapeFuriten(q, tile.t); continue; }
     } else {
       wants = trueEv ? true : Math.random() < 0.75;
@@ -6483,7 +6494,7 @@ function winDetailHTML(p, ev, title, winInfo) {
   html += '<table class="yaku-table">' + ev.yaku.map(function (y) {
     return '<tr><td>' + y.name + '</td><td class="yhan">' + (y.yakuman ? '役満' : y.han + '翻') + '</td></tr>';
   }).join('') + '</table>';
-  html += '<p class="win-total"><b>' + (ev.yakumanCount ? ev.label + ' ' + ev.score.total + '点'
+  html += '<p class="win-total"><b>' + (ev.yakumanCount ? (ev.label || MJ.HAN_LABEL(ev.han, ev.yakumanCount, {})) + ' ' + ev.score.total + '点'
     : ev.han + '翻 ' + ev.fu + '符' + (ev.label ? ' ' + ev.label : '') + ' ' + ev.score.total + '点') + '</b>' +
     (ev.wildPenaltyApplied ? '（オールマイティ ' + ev.wildPenaltyApplied + '枚で -' + ev.wildPenaltyApplied + '翻済み）' : '') + '</p>';
   return html;
