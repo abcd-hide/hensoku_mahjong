@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-19-81]</title>
+<title>変則麻雀 [build 2026-11-19-82]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -196,7 +196,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-19-81</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-19-82</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -3006,17 +3006,29 @@ async function doubtResolveMeld(doubterPi, ownerPi, meld, immediate) {
   try { return await doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate); }
   finally { G.doubtBusy = false; }
 }
+function doubtMeldLabel(meld) {
+  // ダウトされた鳴きを特定する表示名 (bd指示 2026-11-19: どれをダウトされたか分かるように)
+  var t = (meld.tiles && meld.tiles[0]) ? meld.tiles[0].t : meld.tile;
+  var base = MJ.TILE_NAMES[t];
+  if (meld.kakanTileId !== undefined && meld.kakanTileId !== null) return base + 'の加槓';
+  if (meld.claimKind === 'kan') return base + 'のカン';
+  if (meld.claimKind === 'chi' || meld.kind === 'seq') return base + 'のチー';
+  return base + 'のポン';
+}
 async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
   var amount = immediate ? 2000 : 1000;
   var doubter = G.players[doubterPi], owner = G.players[ownerPi];
   if (meld.kakanHidden) {
     // 公開済みポンへの加槓に対するダウト: 判定は加えた1枚だけ。ポン自体は公開済みなので、
     // 見破られても加槓だけが取り消され、ポンは残る
+    var kLabel = doubtMeldLabel(meld);
     var addedTile = meld.tiles.find(function (t) { return t.id === meld.kakanTileId; });
     var kTruth = !!addedTile && (addedTile.t === meld.tile || !!addedTile.wild);
     var kActAsLie = !kTruth;
     if (kTruth && owner.isHuman) {
       var kAns = await modalChoice('<h3>' + doubter.name + ' があなたの加槓をダウトしました！</h3>' +
+        '<p>ダウトされた加槓: <b>' + doubtMeldLabel(meld) + '</b></p>' +
+        '<p>' + meldTilesHTML(meld, true, true, ownerPi) + '</p>' +
         '<p>この加槓は本当です。公開すれば ' + amount + '点もらえます。<br>代わりに、' + amount + '点を支払って加槓を取り消すこともできます（加えた牌は' + (immediate ? '手に戻ります' : '河に捨てられます') + '）。</p>',
         [{ label: '本当だと公開する（' + amount + '点もらう）', value: 'open' },
          { label: amount + '点払って加槓を取り消す', value: 'fake', cls: 'sub' }]);
@@ -3037,20 +3049,23 @@ async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
         }
       }
       meld.kind = 'tri'; meld.claimKind = 'pon'; meld.kakanHidden = false; meld.kakanTileId = null; meld.uso = false;
-      log(owner.name + ' の加槓は' + (kTruth ? '本当だったが嘘として処理され' : '嘘だった') + '、' + doubter.name + ' へ ' + amount + '点。加槓は取り消された');
+      log(owner.name + ' の加槓（' + kLabel + '）は' + (kTruth ? '本当だったが嘘として処理され' : '嘘だった') + '、' + doubter.name + ' へ ' + amount + '点。加槓は取り消された');
     } else {
       doubter.score -= amount; owner.score += amount;
       meld.kakanHidden = false; meld.kakanTileId = null;
-      log(owner.name + ' の加槓は本当だった！ ' + doubter.name + ' は ' + owner.name + ' へ ' + amount + '点');
+      log(owner.name + ' の加槓（' + kLabel + '）は本当だった！ ' + doubter.name + ' は ' + owner.name + ' へ ' + amount + '点');
     }
     doubtTobiCheck();
     renderAll();
     return;
   }
   var truth = !meld.uso;
+  var mLabel = doubtMeldLabel(meld);
   var actAsLie = !truth;
   if (truth && owner.isHuman) {
     var ans = await modalChoice('<h3>' + doubter.name + ' があなたの鳴きをダウトしました！</h3>' +
+      '<p>ダウトされた鳴き: <b>' + doubtMeldLabel(meld) + '</b></p>' +
+      '<p>' + meldTilesHTML(meld, true, true, ownerPi) + '</p>' +
       '<p>この鳴きは本当です。公開すれば ' + amount + '点もらえます。<br>代わりに、' + amount + '点を支払って鳴きを取り消し、牌を手に戻すこともできます。</p>',
       [{ label: '本当だと公開する（' + amount + '点もらう）', value: 'open' },
        { label: amount + '点払って鳴きを取り消す（手に戻す）', value: 'fake', cls: 'sub' }]);
@@ -3058,12 +3073,12 @@ async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
   }
   if (actAsLie) {
     owner.score -= amount; doubter.score += amount;
-    log(owner.name + ' の鳴きは' + (truth ? '本当だったが嘘として処理され' : '嘘だった') + '、' + doubter.name + ' へ ' + amount + '点。鳴きは取り消された');
+    log(owner.name + ' の鳴き（' + mLabel + '）は' + (truth ? '本当だったが嘘として処理され' : '嘘だった') + '、' + doubter.name + ' へ ' + amount + '点。鳴きは取り消された');
     doubtUndoMeld(ownerPi, meld, immediate);
   } else {
     doubter.score -= amount; owner.score += amount;
     meld.hidden = false; meld.revealed = true;
-    log(owner.name + ' の鳴きは本当だった！ ' + doubter.name + ' は ' + owner.name + ' へ ' + amount + '点');
+    log(owner.name + ' の鳴き（' + mLabel + '）は本当だった！ ' + doubter.name + ' は ' + owner.name + ' へ ' + amount + '点');
   }
   doubtTobiCheck();
   renderAll();
@@ -3197,7 +3212,7 @@ async function doubtImmediateWindow(ownerPi, meld) {
       wants = await new Promise(function (resolve) {
         var done = function (v) { if (G.immediateDoubt && G.immediateDoubt.meld === meld) G.immediateDoubt = null; resolve(v); };
         G.immediateDoubt = { meld: meld, resolve: done };
-        G.pending = { buttons: [{ label: 'ダウト！（即ダウト: 嘘なら2000点もらえる）', value: true }, { label: '見送る', value: false, cls: 'sub' }], resolve: function (v) { done(!!v); } };
+        G.pending = { buttons: [{ label: 'ダウト！（' + G.players[ownerPi].name + 'の' + doubtMeldLabel(meld) + ': 嘘なら2000点もらえる）', value: true }, { label: '見送る', value: false, cls: 'sub' }], resolve: function (v) { done(!!v); } };
         renderActions();
       });
     } else wants = Math.random() < 0.18;
