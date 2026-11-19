@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-19-86]</title>
+<title>変則麻雀 [build 2026-11-19-87]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -201,7 +201,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-19-86</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-19-87</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -3060,6 +3060,7 @@ async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
           owner.discards.push({ tile: addedTile, riichi: false, protected: false, called: false });
           owner.discardTypes.push(addedTile.t);
           log('加槓に使った牌（' + tileObjName(addedTile) + '）は河に捨てられた');
+          queuePondDropRon(ownerPi, addedTile);
         }
       }
       meld.kind = 'tri'; meld.claimKind = 'pon'; meld.kakanHidden = false; meld.kakanTileId = null; meld.uso = false;
@@ -3105,6 +3106,24 @@ function doubtTobiCheck() {
   endMatch('トビ終了: ' + G.players[loser].name + ' が0点未満になった（ダウトの点数移動）');
   return true;
 }
+/* ダウトで崩れたカンの牌が河に落ちたとき、その牌へのロン窓を用意する (bd指示 2026-11-19):
+   鳴きはできないが、ロンはできる。窓は次の doubtTurnWindow (ツモの前) で開く */
+function queuePondDropRon(ownerPi, tileObj) {
+  if (!tileObj || tileObj.t < 0) return;
+  (G.pondDropQueue = G.pondDropQueue || []).push({ owner: ownerPi, tile: tileObj });
+  log('（' + tileObjName(tileObj) + ' は鳴けないがロンできる）');
+}
+async function doubtProcessPondDrops() {
+  var q = G.pondDropQueue || [];
+  if (!q.length) return false;
+  G.pondDropQueue = [];
+  for (var i = 0; i < q.length; i++) {
+    if (G.over) return true;
+    var r = await doubtRonPhase(q[i].owner, q[i].tile, false);
+    if (r === 'win') return true;
+  }
+  return false;
+}
 function doubtUndoMeld(ownerPi, meld, immediate) {
   var p = G.players[ownerPi];
   var ix = p.melds.indexOf(meld);
@@ -3123,6 +3142,7 @@ function doubtUndoMeld(ownerPi, meld, immediate) {
     p.discards.push({ tile: drop, riichi: false, protected: false, called: false });
     p.discardTypes.push(drop.t);
     log('カンのうち1枚（' + tileObjName(drop) + '）はランダムに捨てられた');
+    queuePondDropRon(ownerPi, drop);
   }
   tiles.forEach(function (t) { p.hand.push(t); });
   sortHand(p);
@@ -3258,6 +3278,8 @@ function onDoubtButton(ownerPi, meldIdx) {
   doubtResolveMeld(0, ownerPi, meld, false);
 }
 async function doubtTurnWindow(pi) {
+  // 河に落ちた牌へのロン窓を先に開く (ツモの前。局が終わったらここで止める)
+  if (await doubtProcessPondDrops()) return;
   var targets = [];
   for (var oi = 0; oi < 4; oi++) {
     if (oi === pi) continue;
@@ -3272,6 +3294,7 @@ async function doubtTurnWindow(pi) {
     if (Math.random() < 0.12) {
       var t2 = targets[Math.floor(Math.random() * targets.length)];
       await doubtResolveMeld(pi, t2.owner, t2.meld, false);
+      await doubtProcessPondDrops(); // この解決で河に落ちた牌のロン窓
     }
   }
 }
