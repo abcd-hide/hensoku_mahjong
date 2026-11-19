@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-19-89]</title>
+<title>変則麻雀 [build 2026-11-19-90]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -202,10 +202,11 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-19-89</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-19-90</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
+    <button id="btn-nodoubt">ダウト主張なし: OFF</button>
     <button id="btn-settings">ルール設定</button>
     <button id="btn-newmatch">対戦開始</button>
   </div>
@@ -1178,6 +1179,7 @@ var DEFAULT_SETTINGS = {
   pinfu30: false, kazoe: true, doubleYakuman: true, atamahane: true, tobi: true, nagashi: true,
   openRiichi: true, renho: 'off', daisharin: true, renkou: true, sound: true, voice: true, voiceGender: 'auto',
   noCall: false, // 鳴きなしフラグ: ONの間、他家の捨て牌への鳴きは自動でパスする
+  noDoubtClaim: false, // ダウト主張なしフラグ: ONの間、ダウトの主張は自動でパスする (鳴きなしとは別ボタン)
   doubtWilds: 4, // ダウト系のオールマイティ枚数 (4 or 8)
   doubtWildKind: 'five' // ダウト系の万能牌の種類: 'five' = 5, 'flower' = 春夏秋冬
 };
@@ -3533,7 +3535,7 @@ async function doubtCallPhase(pi, tile) {
   for (var oi = 1; oi <= 3; oi++) {
     var cqi = (pi + oi) % 4, cq = G.players[cqi];
     if (cq.riichi) continue;
-    if (cq.isHuman && !noCallOn()) {
+    if (cq.isHuman && !noDoubtClaimOn()) {
       var btns = [];
       if (cq.hand.length >= 3) btns.push({ label: 'カン！（主張）' + MJ.TILE_NAMES[tile.t], value: 'kan' });
       if (cq.hand.length >= 2) btns.push({ label: 'ポン！（主張）' + MJ.TILE_NAMES[tile.t], value: 'pon' });
@@ -7021,6 +7023,11 @@ function noCallOn() { return !!S.noCall; }
 function syncNoCallBtn() { var b = $('btn-nocall'); if (b) b.textContent = '鳴きなし: ' + (S.noCall ? 'ON' : 'OFF'); }
 $('btn-nocall').addEventListener('click', function () { S.noCall = !S.noCall; saveSettings(); syncNoCallBtn(); log('鳴きなしフラグを' + (S.noCall ? 'ONにした（他家の捨て牌への鳴きは自動でパスします）' : 'OFFにした')); });
 syncNoCallBtn();
+/* ダウト主張なしフラグ (bd指示 2026-11-19): 鳴きなしとは別のボタンで付け外しする */
+function noDoubtClaimOn() { return !!S.noDoubtClaim; }
+function syncNoDoubtBtn() { var b = $('btn-nodoubt'); if (b) b.textContent = 'ダウト主張なし: ' + (S.noDoubtClaim ? 'ON' : 'OFF'); }
+$('btn-nodoubt').addEventListener('click', function () { S.noDoubtClaim = !S.noDoubtClaim; saveSettings(); syncNoDoubtBtn(); log('ダウト主張なしフラグを' + (S.noDoubtClaim ? 'ONにした（ダウトの主張は自動でパスします）' : 'OFFにした')); });
+syncNoDoubtBtn();
 $('btn-log-toggle').addEventListener('click', function () { var sc = $('side-col'); sc.classList.toggle('log-open'); var open = sc.classList.contains('log-open'); this.textContent = open ? '📋 ログを隠す' : '📋 ログを表示'; if (open) $('log').scrollIntoView({ block: 'nearest' }); });
 if (window.visualViewport) window.visualViewport.addEventListener('resize', function () { var m = $('modal'); if (m && !m.classList.contains('hidden')) fitModalViewport(); });
 /* キーボード操作: 1-9,0,Q,W,E,R = 左から数えた牌を切る / Enter = 結果表示の「次へ」 */
