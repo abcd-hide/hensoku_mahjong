@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-19-84]</title>
+<title>変則麻雀 [build 2026-11-19-85]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -109,7 +109,7 @@ legend { font-weight: bold; padding: 0 6px; }
 .key-label { font-size: 1.2em; font-weight: bold; color: #b9d8c2; margin-top: .18em; line-height: 1; }
 #human-hand .tile-wrap.key-selected .key-label { color: #ffb84d; }
 #human-hand .tile-wrap:hover .key-label { color: #ffe9a8; }
-.tile.wild img { outline: 3px solid #f5c542; outline-offset: -3px; border-radius: 14%; }
+/* オールマイティ牌の枠は廃止 (bd指示 2026-11-19: 枠があると牌が判別しづらい)。★バッジは残す */
 .tile .tbadge { position: absolute; top: -5px; right: -3px; font-size: 13px; color: #ffdf4d; text-shadow: 0 0 3px #7a5200, 0 0 2px #7a5200; z-index: 2; }
 .tile.called { opacity: .45; }
 .tile.riichi-d { transform: rotate(90deg); margin: .72em .55em; }
@@ -201,7 +201,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-19-84</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-19-85</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -1957,6 +1957,8 @@ async function doDraw(pi, rinshan) {
   p.hand.push(tile); // ツモ牌は一番右に置き、理牌は牌を切った後で行う
   p.hasDrawn = true; p.drawsTaken++; G.turnCount++;
   G.drawnTileId = tile.id; G.lastDrawn = tile;
+  // キーボード使用中なら、自分の番の頭ではツモ牌が選択された状態にする (bd指示 2026-11-19)
+  if (pi === 0 && G.kbUsed) { G.keySel = p.hand.length - 1; G.keySelLen = p.hand.length; }
   renderAll();
   return tile;
 }
@@ -6974,6 +6976,7 @@ document.addEventListener('keydown', function (e) {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   var tag = (e.target && e.target.tagName) || '';
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (G) G.kbUsed = true; // キーボード使用中 (自分の番の頭でツモ牌を選択状態にする判定)
   var cbtns = choiceButtonsNow();
   if (cbtns && cbtns.length) {
     var numIdx = '123456789'.indexOf(e.key);
