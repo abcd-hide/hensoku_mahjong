@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-19-85]</title>
+<title>変則麻雀 [build 2026-11-19-86]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -201,7 +201,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-19-85</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-19-86</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-settings">ルール設定</button>
@@ -1172,6 +1172,11 @@ function loadSettings() {
   return Object.assign({}, DEFAULT_SETTINGS);
 }
 function saveSettings() { try { localStorage.setItem('hensokuMahjongSettings', JSON.stringify(S)); } catch (e) {} }
+// キーボード使用中かどうかは対戦 (G) をまたいで保持する (bd報告 2026-11-19:
+// G は対戦ごとに作り直されるため、前の対戦でキーを使っても新しい対戦の
+// 1局目ではツモ牌に枠が付かなかった)
+var KB_USED = false;
+try { KB_USED = !!localStorage.getItem('hensokuKbUsed'); } catch (e) {}
 function engineSettings() {
   return { kuitan: S.kuitan, ippatsu: S.ippatsu, uraDora: S.variant === 'survival' ? false : S.ura,
     openRiichi: S.openRiichi, renho: S.renho, daisharin: S.daisharin, renkou: S.renkou,
@@ -1958,7 +1963,7 @@ async function doDraw(pi, rinshan) {
   p.hasDrawn = true; p.drawsTaken++; G.turnCount++;
   G.drawnTileId = tile.id; G.lastDrawn = tile;
   // キーボード使用中なら、自分の番の頭ではツモ牌が選択された状態にする (bd指示 2026-11-19)
-  if (pi === 0 && G.kbUsed) { G.keySel = p.hand.length - 1; G.keySelLen = p.hand.length; }
+  if (pi === 0 && (KB_USED || G.kbUsed)) { G.keySel = p.hand.length - 1; G.keySelLen = p.hand.length; }
   renderAll();
   return tile;
 }
@@ -2997,9 +3002,11 @@ function doubtUsoBonusEv(uso, wildTotal, isDealer, isTsumo) {
   }
   return { name: '3ウーソー（満貫）', han: 5, yakumanCount: 0, score: MJ.scoreFromHanFu(5, 40, isDealer, isTsumo, st) };
 }
-function doubtPlusOneDora(ev, pi, isTsumo) {
+function doubtPlusOneDora(ev, pi, isTsumo, kind) {
   if (ev.yakumanCount > 0) return ev;
-  ev.yaku.push({ name: 'ダウト（ドラ+1）', han: 1 });
+  // +1 の理由が結果表示で分かるようにする (bd指示 2026-11-19):
+  // 相手にダウトされた本物ロンなら「ダウト」、嘘ロンの精算なら「嘘ロン」
+  ev.yaku.push({ name: kind === 'fake' ? '嘘ロン（ドラ+1）' : 'ダウト（ドラ+1）', han: 1 });
   ev.han += 1;
   ev.score = MJ.scoreFromHanFu(ev.han, ev.fu, pi === G.dealer, isTsumo, engineSettings());
   return ev;
@@ -3547,12 +3554,12 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
     speakCall('ロン');
     log(q.name + ' ロン上がり ' + hanText(ev) + ' ' + pay + '点' + (note ? '（' + note + '）' : ''));
     var html = winDetailHTML(q, ev, q.name + ' ロン上がり', { kind: 'ron', tile: tile, fromName: discarder.name }) +
-      '<p>' + discarder.name + ' から ' + pay + '点</p>' + (extraHtml || '');
+      '<p>' + discarder.name + ' から ' + pay + '点</p>' + (note ? '<p>（' + note + '）</p>' : '') + (extraHtml || '');
     return finishHand({ winner: qi, ev: ev, html: html, multiWinners: [qi] });
   }
   if (fakeEv && !trueEv) {
     var bonus = doubtUsoBonusEv(doubtUsoCount(q) + 1, doubtWildTotal(q), qi === G.dealer, false);
-    var evF = doubtPlusOneDora(fakeEv, qi, false);
+    var evF = doubtPlusOneDora(fakeEv, qi, false, 'fake');
     if (bonus && bonus.score.total > evF.score.total) {
       evF = { yaku: [{ name: bonus.name, han: bonus.han, yakuman: bonus.yakumanCount }], han: bonus.han, fu: 40, yakumanCount: bonus.yakumanCount, score: bonus.score };
     }
@@ -3591,7 +3598,7 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
       await finishWith(evT2, 'ダウトされたが本当（ドラ+1）');
     } else {
       var bonus2 = doubtUsoBonusEv(doubtUsoCount(q) + 1, doubtWildTotal(q), qi === G.dealer, false);
-      var evF2 = doubtPlusOneDora(fakeEv, qi, false);
+      var evF2 = doubtPlusOneDora(fakeEv, qi, false, 'fake');
       if (bonus2 && bonus2.score.total > evF2.score.total) {
         evF2 = { yaku: [{ name: bonus2.name, han: bonus2.han, yakuman: bonus2.yakumanCount }], han: bonus2.han, fu: 40, yakumanCount: bonus2.yakumanCount, score: bonus2.score };
       }
@@ -6976,6 +6983,7 @@ document.addEventListener('keydown', function (e) {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   var tag = (e.target && e.target.tagName) || '';
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (!KB_USED) { KB_USED = true; try { localStorage.setItem('hensokuKbUsed', '1'); } catch (e) {} }
   if (G) G.kbUsed = true; // キーボード使用中 (自分の番の頭でツモ牌を選択状態にする判定)
   var cbtns = choiceButtonsNow();
   if (cbtns && cbtns.length) {
