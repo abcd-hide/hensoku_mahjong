@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-21-104]</title>
+<title>変則麻雀 [build 2026-11-21-105]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -204,7 +204,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-21-104</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-21-105</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -2062,6 +2062,7 @@ async function doDraw(pi, rinshan) {
       tile = G.wall.pop();
     }
   }
+  G.rinshanFlag = !!rinshan; // 嶺上かどうかは「今のツモ」で確定させる (フラグ漏れによる嶺上開花の誤判定防止)
   p.hand.push(tile); // ツモ牌は一番右に置き、理牌は牌を切った後で行う
   p.hasDrawn = true; p.drawsTaken++; G.turnCount++;
   G.drawnTileId = tile.id; G.lastDrawn = tile;
@@ -2145,6 +2146,23 @@ async function sanmaCpuKita(pi) {
     await doKita(pi); did = true;
     var ev = evalWin(p, G.lastDrawn ? G.lastDrawn.t : null, { tsumo: true, rinshan: true, haitei: G.wall.length === 0 });
     if (ev) { await doWinTsumo(pi, ev); return 'win'; }
+  }
+  return did;
+}
+async function simulKitaPhase(pi) {
+  // 同時進行系・特殊ループ系の北抜き (サンマ)。ツモ判定は呼び出し側の評価に任せる
+  var p = G.players[pi], did = false;
+  while (canKita(p)) {
+    if (p.isHuman) {
+      G.current = pi; renderAll();
+      var ans = await modalChoice('<h3>北抜き</h3><p>' + p.name + ': 北を抜きますか？（抜きドラ+1、嶺上から1枚引きます）</p>', [{ label: '北を抜く', value: true }, { label: '抜かない', value: false, cls: 'sub' }]);
+      if (!ans) break;
+    } else {
+      var c = kitaInHand(p);
+      var want = (c % 2 === 1) || c >= 4 || playerShanten(p) <= 0;
+      if (!want) break;
+    }
+    await doKita(pi); did = true;
   }
   return did;
 }
@@ -2879,9 +2897,10 @@ function cpuPassTile(p) {
 async function drawPhaseAction(pi) {
   var p = G.players[pi];
   await doDraw(pi, false);
+  if (isSanma() && !p.isHuman) await simulKitaPhase(pi);
   while (true) {
     var pd = computePostDraw(pi);
-    if (!pd.ev && !pd.kans.length) {
+    if (!pd.ev && !pd.kans.length && !canKita(p)) {
       if (p.riichi) p.extraTileId = G.lastDrawn ? G.lastDrawn.id : null;
       return 'next';
     }
@@ -2889,6 +2908,7 @@ async function drawPhaseAction(pi) {
       var btns = [];
       if (pd.ev) btns.push({ label: 'ツモ！ ' + hanText(pd.ev) + ' ' + pd.ev.fu + '符', value: 'tsumo' });
       pd.kans.forEach(function (k, i) { btns.push({ label: (k.kind === 'ankan' ? '暗槓 ' : '加槓 ') + MJ.TILE_NAMES[k.tile], value: 'kan' + i }); });
+      if (canKita(p)) btns.push({ label: '北を抜く（ドラ+1）', value: 'kita' });
       btns.push({ label: 'そのまま', value: 'none', cls: 'sub' });
       var ans = await waitHuman(btns);
       if (ans === 'tsumo' && pd.ev) { await settleSimultaneous([{ pi: pi, ev: pd.ev, kind: 'tsumo', tile: G.lastDrawn }]); return 'win'; }
@@ -2899,6 +2919,7 @@ async function drawPhaseAction(pi) {
         await doDraw(pi, true);
         continue;
       }
+      if (ans === 'kita') { await doKita(pi); continue; }
       if (p.riichi) p.extraTileId = G.lastDrawn ? G.lastDrawn.id : null;
       return 'next';
     }
@@ -2935,18 +2956,29 @@ async function roundExchange() {
   G.players.forEach(function (p, pi2) { if (p.riichi) p.extraTileId = received[pi2] ? received[pi2].id : p.extraTileId; });
   log('全員が下家へ1枚渡した');
   renderAll();
+  // サンマ: 北抜き (手牌・受け取った牌の北)。抜いた人は嶺上牌でツモ判定する
+  var kitaTile = {};
+  if (isSanma()) {
+    for (var kpi = 0; kpi < NP(); kpi++) {
+      if (await simulKitaPhase(kpi)) {
+        kitaTile[kpi] = G.lastDrawn;
+        if (G.players[kpi].riichi) G.players[kpi].extraTileId = G.lastDrawn ? G.lastDrawn.id : null;
+      }
+    }
+  }
   var preWins = [];
   for (var wi = 0; wi < NP(); wi++) {
     var wp = G.players[wi], rt = received[wi];
-    if (!rt) continue;
-    var ev = evalWin(wp, rt.t, { tsumo: true, winningRed: rt.red });
+    var kt = kitaTile[wi];
+    if (!rt && !kt) continue;
+    var ev = kt ? evalWin(wp, kt.t, { tsumo: true, rinshan: true, winningRed: kt.red }) : evalWin(wp, rt.t, { tsumo: true, winningRed: rt.red });
     if (!ev) continue;
     if (wp.isHuman) {
-      var ok = await waitHuman([{ label: 'ツモ！（回ってきた牌）' + hanText(ev) + ' ' + ev.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
+      var ok = await waitHuman([{ label: 'ツモ！' + (kt ? '（嶺上）' : '（回ってきた牌）') + hanText(ev) + ' ' + ev.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
       if (!ok) continue;
     }
-    preWins.push({ pi: wi, ev: ev, kind: 'tsumo', tile: rt });
-    log(wp.name + ' は回ってきた牌でツモ宣言');
+    preWins.push({ pi: wi, ev: ev, kind: 'tsumo', tile: kt || rt });
+    log(wp.name + (kt ? ' は嶺上ツモ宣言' : ' は回ってきた牌でツモ宣言'));
   }
   // パスで受け取った牌でカンできる場合 (暗槓/加槓) は、捨てる前に宣言できる (4枚ヅモのドラフト後と同じ扱い)
   for (var ki2 = 0; ki2 < NP(); ki2++) {
@@ -3036,6 +3068,8 @@ async function roundFourdraw() {
     p.hand.push(kept); G.lastDrawn = kept;
     if (p.riichi) p.extraTileId = kept.id;
     renderAll();
+    G.rinshanFlag = false; // ドラフトのピックは嶺上ツモではない
+    if (isSanma() && await simulKitaPhase(pi)) { if (p.riichi) p.extraTileId = G.lastDrawn ? G.lastDrawn.id : null; }
     var pd = computePostDraw(pi);
     if (pd.ev) {
       var declare = true;
@@ -3043,7 +3077,7 @@ async function roundFourdraw() {
         var ok = await waitHuman([{ label: 'ツモ宣言する！ ' + hanText(pd.ev) + ' ' + pd.ev.fu + '符', value: true }, { label: '宣言しない', value: false, cls: 'sub' }]);
         declare = !!ok;
       }
-      if (declare) { preWins.push({ pi: pi, ev: pd.ev, kind: 'tsumo', tile: kept }); log(p.name + ' はツモ宣言'); }
+      if (declare) { preWins.push({ pi: pi, ev: pd.ev, kind: 'tsumo', tile: G.lastDrawn || kept }); log(p.name + ' はツモ宣言'); }
     } else if (pd.kans.length && !p.riichi) {
       var doKan = p.isHuman ? false : Math.random() < 0.5;
       if (p.isHuman) {
@@ -4868,6 +4902,7 @@ async function bridgeCallDiscard(pi) {
 }
 async function bridgeDiscardPhase(pi, keptTile) {
   var p = G.players[pi];
+  if (isSanma() && !p.isHuman) await simulKitaPhase(pi);
   if (p.riichi && keptTile) G.lastDrawn = keptTile;
   while (true) {
     var pd = computePostDraw(pi);
@@ -5860,6 +5895,15 @@ function cpuWorstTile(p) {
 async function riichiTurn51(pi) {
   var p = G.players[pi];
   while (true) {
+    if (isSanma() && await simulKitaPhase(pi)) {
+      var evk = evalWin(p, G.lastDrawn ? G.lastDrawn.t : null, { tsumo: true, rinshan: true });
+      if (evk) {
+        var okk = true;
+        if (p.isHuman) okk = await waitHuman([{ label: 'ツモ！（嶺上） ' + hanText(evk) + ' ' + evk.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
+        if (okk) { await doWinTsumo(pi, evk); return 'win'; }
+        log(p.name + ' は嶺上の当たりを見逃した');
+      }
+    }
     var waits = playerWaits(p);
     var winTile = null;
     for (var i = 0; i < G.center51.length; i++) if (waits.indexOf(G.center51[i].t) >= 0) { winTile = G.center51[i]; break; }
@@ -6013,6 +6057,7 @@ async function cpuExchange51(pi) {
 async function turn51(pi) {
   var p = G.players[pi];
   if (p.riichi) return riichiTurn51(pi);
+  if (isSanma()) await simulKitaPhase(pi);
   if (p.menzen && playerShanten(p) === 0 && p.score >= 1000) {
     var declare = false;
     if (p.isHuman) {
