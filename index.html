@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-21-106]</title>
+<title>変則麻雀 [build 2026-11-21-107]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -204,7 +204,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-21-106</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-21-107</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -1206,7 +1206,7 @@ var VARIANT_DESC = {
   allmighty: '赤5牌（各1枚）がオールマイティ（何にでもなる）。持っているだけで1枚につき-1翻されるが、評価はペナルティ後も上がれる中で最も点数が高くなるものを採用する。オールマイティ単騎の上がりは反則。フリテンは「上がれる全ての可能性」で判定される。',
   survival: '点数は減る一方、誰かが0点未満（ドボン）になるまで続ける。上がるにはテンパイ宣言が必須で、宣言後はツモをしない（ロン専用）。リーチ棒は不要・裏ドラ/カンドラなし。10000点持ち。',
   roleplay: '通常麻雀+特技。字牌を捨てる時に特技を取得できる（先着順・重複不可、その牌が鳴かれたら取得取消）。取得できる数は設定で1つ/2つまでを選べます。特技は8種類。サンマでは特技「どこチー」を取ればチーできます。',
-  fiftyone: '中央に公開された4枚と手牌を交換して進める麻雀。交換で出した牌はロン/鳴きの対象になり、鳴いた人は手牌から1枚を中央へ補充する。4番目以降は中央を自分の河へ「流す」ことができる。リーチは-1翻、食い上がりは開いた副露1つにつき+1翻（著者注の任意ルールを採用）。',
+  fiftyone: '中央に公開された牌（人数分）と手牌を交換して進める麻雀。交換で出した牌はロン/鳴きの対象になり、鳴いた人は手牌から1枚を中央へ補充する。人数番目以降は中央を自分の河へ「流す」ことができる。リーチは-1翻、食い上がりは開いた副露1つにつき+1翻（著者注の任意ルールを採用）。',
   sashi: '2人対戦。ツモは2枚・捨ては1枚、鳴いたら捨てなくてよい。先に2組の上がりを完成させた方が勝ちで、点数移動は2組目が成立した時に2組分まとめて行う。ツモの受取は一人分のみ。1組目の後は14枚に戻るまでツモのみで補充する。',
   exchange: '全員14枚から開始し、同時に下家へ1枚パス→同時に捨て→順番に1枚ツモ、を繰り返す。同時に捨てた牌へのロンは複数人・複数回とも同時成立する。鳴きは何回でもでき、鳴くたびに1枚切る。回ってきた牌で上がっていれば捨てのタイミングでツモ宣言する。',
   fourdraw: '4枚のドラフトを回して全員が1枚ずつ取り、同時に捨てる。取った牌で上がれる場合は河に出してツモ宣言し、他の人のロンも同時に成立する（1人が複数回上がる場合もある）。リーチ後のロンは原典では0発2翻だが、筆者の方式で一発扱いとする。',
@@ -5811,7 +5811,7 @@ function groupPinBonus(p, winTileType, isTsumo) {
 /* ================= 51麻雀 =================
    中央に人数分 (4人=4枚/サンマ=3枚) を公開し、自分の番に「中央の1枚 ⇔ 手牌の1枚」を交換する。
    交換で出た牌は通常の捨て牌と同じくロン/鳴きの対象になる（鳴かれたら鳴いた人が手牌から1枚を中央へ補充し、
-   その次の人から再開）。新しい中央が開けてから4番目以降の人は、中央の牌を自分の河へ「流す」ことができる。
+   その次の人から再開）。新しい中央が開けてから人数番目以降の人は、中央の牌を自分の河へ「流す」ことができる。
    リーチ中は交換せず、中央に当たり牌があればツモ、無ければ中央の1枚を「捨てたもの」とみなして進行する。
    著者注の任意ルールを採用: リーチは-1翻、食い上がりは開いた副露1つにつき+1翻（evalWin内で補正）。 */
 function declareRiichi51(pi) {
@@ -5922,8 +5922,8 @@ async function riichiTurn51(pi) {
         return 'win';
       }
     }
-    // リーチ後も、4番目以降は中央を流せる (bd指示 2026-11-15)。流したら新しい中央で当たりを再判定する
-    var canFlush = G.centerAge >= 3 && G.wall.length > 0;
+    // リーチ後も、人数番目以降は中央を流せる (4人=4番目 bd指示 2026-11-15、サンマ=3番目 bd指示 2026-11-21)。流したら新しい中央で当たりを再判定する
+    var canFlush = G.centerAge >= NP() - 1 && G.wall.length > 0;
     var vt;
     if (p.isHuman) {
       log('リーチ中: 中央の牌を1枚「捨てたもの」として指定してください');
@@ -5953,7 +5953,7 @@ async function riichiTurn51(pi) {
 async function humanExchange51(pi) {
   var p = G.players[pi];
   while (true) {
-    var canFlush = G.centerAge >= 3 && G.wall.length > 0;
+    var canFlush = G.centerAge >= NP() - 1 && G.wall.length > 0;
     var buttons = [];
     if (canFlush) buttons.push({ label: '中央の牌を流す', value: 'flush' });
     log('中央の牌を1枚選んでください（交換）');
@@ -6026,7 +6026,7 @@ async function cpuExchange51(pi) {
     await doWinTsumo(pi, best.ev);
     return 'win';
   }
-  if (G.centerAge >= 3 && G.wall.length && (!best || best.sh >= curSh) && Math.random() < 0.8) {
+  if (G.centerAge >= NP() - 1 && G.wall.length && (!best || best.sh >= curSh) && Math.random() < 0.8) {
     var fr = flush51(pi);
     if (fr === 'exhaustive') return 'exhaustive';
     return cpuExchange51(pi);
