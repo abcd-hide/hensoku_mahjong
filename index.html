@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-21-101]</title>
+<title>変則麻雀 [build 2026-11-21-102]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -204,7 +204,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-21-101</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-21-102</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -1379,7 +1379,7 @@ function roundName() {
 }
 function matchEndedByLength() {
   if (S.variant === 'survival') return false; // ドボンまで
-  var total = S.length === 'single' ? 1 : (S.length === 'tonpuu' ? 4 : 8);
+  var total = S.length === 'single' ? 1 : (S.length === 'tonpuu' ? NP() : 2 * NP()); // 1周 = 人数分 (サンマ東風3局/半荘6局)
   return G.handNo >= total;
 }
 function nextHand(first) {
