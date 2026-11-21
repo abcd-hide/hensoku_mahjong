@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-21-110]</title>
+<title>変則麻雀 [build 2026-11-21-111]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -204,7 +204,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-21-110</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-21-111</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -743,7 +743,7 @@ function evalDecomp(allSets, pair, counts, meldsCount, ctx, special) {
     if (winSet.length) {
       // 上がり牌がメンツを完成させている読みを優先する。雀頭と同種の牌でも、
       // 順子を両面で完成させていれば単騎にはしない (例: 1,1,2,3筒 + 1筒ロン)
-      var edgeOrClosed = winSet.some(function (s) {
+      var edgeOrClosed = winSet.every(function (s) {
         return s.kind === 'seq' && (ctx.winningTile === s.tile + 1 || (NUM(s.tile) === 1 && ctx.winningTile === s.tile + 2) || (NUM(s.tile) === 7 && ctx.winningTile === s.tile));
       });
       if (edgeOrClosed) waitFu = 2;
@@ -2594,6 +2594,7 @@ if (chosen) return executeWildCall(cl.pi, pi, tile, chosen);
 continue;
 }
 var take = false;
+var chosenKind = cl.kind;
 if (cp.isHuman && noCallOn()) { humanPassedBoth = true; oomaiHumanPassed = true; }
 else if (cp.isHuman) {
 renderAll();
@@ -2606,7 +2607,8 @@ humanWildChiOpts.forEach(function (o, oi5) { wildBtnsH.push({ label: 'チー（�
 if (chiSeqsH.length || wildBtnsH.length || cl.kind === 'oomai') {
 // ポン/カン・チー・万能鳴きのうち可能なものを、1つのプロンプトで全部出す
 var btnsH = [];
-if (cl.kind === 'pon' || cl.kind === 'kan') btnsH.push({ label: (cl.kind === 'kan' ? 'カン！' : 'ポン！') + ' ' + MJ.TILE_NAMES[tile.t], value: 'ponkan' });
+if (cl.kind === 'kan') { btnsH.push({ label: 'カン！ ' + MJ.TILE_NAMES[tile.t], value: 'kan' }); btnsH.push({ label: 'ポン！ ' + MJ.TILE_NAMES[tile.t], value: 'pon' }); }
+else if (cl.kind === 'pon') btnsH.push({ label: 'ポン！ ' + MJ.TILE_NAMES[tile.t], value: 'pon' });
 if (chiSeqsH.length) btnsH.push({ label: 'チー！ ' + MJ.TILE_NAMES[tile.t], value: 'chi' });
 btnsH = btnsH.concat(wildBtnsH);
 btnsH.push({ label: 'パス', value: 'pass', cls: 'sub' });
@@ -2623,13 +2625,19 @@ if (typeof ansH === 'string' && ansH.indexOf('wildchi') === 0) return executeWil
 if (typeof ansH === 'string' && ansH.indexOf('wild') === 0) return executeWildCall(cl.pi, pi, tile, humanWildOpts[Number(ansH.slice(4))]);
 humanPassedBoth = true;
 oomaiHumanPassed = true;
-take = ansH === 'ponkan';
+take = ansH === 'pon' || ansH === 'kan';
+if (take) chosenKind = ansH;
 } else {
-take = await waitHuman([{ label: (cl.kind === 'kan'? 'カン！': 'ポン！') + ' ' + MJ.TILE_NAMES[tile.t], value: true}, { label: 'パス', value: false, cls: 'sub'}]);
+var pkBtns = cl.kind === 'kan'
+  ? [{ label: 'カン！ ' + MJ.TILE_NAMES[tile.t], value: 'kan' }, { label: 'ポン！ ' + MJ.TILE_NAMES[tile.t], value: 'pon' }, { label: 'パス', value: 'pass', cls: 'sub' }]
+  : [{ label: 'ポン！ ' + MJ.TILE_NAMES[tile.t], value: 'pon' }, { label: 'パス', value: 'pass', cls: 'sub' }];
+var pkAns = await waitHuman(pkBtns);
+take = pkAns === 'pon' || pkAns === 'kan';
+if (take) chosenKind = pkAns;
 }
 } else take = cpuShouldCall(cl.pi, tile, cl.kind);
 if (take) {
-return executeCall(cl.pi, pi, tile, cl.kind, null);
+return executeCall(cl.pi, pi, tile, chosenKind, null);
 }
 }
 // チー: 下家のみ (どこチー特技で誰でも可、近い順)
@@ -2852,7 +2860,7 @@ async function callPhaseSimul(roundDiscards) {
         var doCall = null;
         if (p.isHuman && !noCallOn()) {
           var btns = [];
-          if (kind === 'kan') btns.push({ label: 'カン！ ' + MJ.TILE_NAMES[tile.t] + '（' + G.players[rd.pi].name + '）', value: 'kan' });
+          if (kind === 'kan') { btns.push({ label: 'カン！ ' + MJ.TILE_NAMES[tile.t] + '（' + G.players[rd.pi].name + '）', value: 'kan' }); btns.push({ label: 'ポン！ ' + MJ.TILE_NAMES[tile.t] + '（' + G.players[rd.pi].name + '）', value: 'pon' }); }
           else if (kind === 'pon') btns.push({ label: 'ポン！ ' + MJ.TILE_NAMES[tile.t] + '（' + G.players[rd.pi].name + '）', value: 'pon' });
           if (seqs.length) btns.push({ label: 'チー！ ' + MJ.TILE_NAMES[tile.t] + '（' + G.players[rd.pi].name + '）', value: 'chi' });
           btns.push({ label: 'パス', value: 'pass', cls: 'sub' });
@@ -2953,6 +2961,23 @@ async function drawPhaseAction(pi) {
   }
 }
 async function roundExchange() {
+  // サンマ: 交換 (パス) の前にも北抜きできる (bd報告 2026-11-21)。抜いた人は嶺上牌でツモ判定する
+  if (isSanma()) {
+    var preKitaWins = [];
+    for (var pk = 0; pk < NP(); pk++) {
+      if (await simulKitaPhase(pk)) {
+        var pkt = G.lastDrawn, pkp = G.players[pk];
+        if (pkp.riichi) pkp.extraTileId = pkt ? pkt.id : pkp.extraTileId;
+        var pev = pkt ? evalWin(pkp, pkt.t, { tsumo: true, rinshan: true, winningRed: pkt.red }) : null;
+        if (pev && pkp.isHuman) {
+          var pok = await waitHuman([{ label: 'ツモ！（嶺上）' + hanText(pev) + ' ' + pev.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
+          if (!pok) pev = null;
+        }
+        if (pev) { preKitaWins.push({ pi: pk, ev: pev, kind: 'tsumo', tile: pkt }); log(pkp.name + ' は嶺上ツモ宣言'); }
+      }
+    }
+    if (preKitaWins.length) { await settleSimultaneous(preKitaWins); return 'win'; }
+  }
   var passes = [], received = [];
   for (var pi = 0; pi < NP(); pi++) {
     var p = G.players[pi], tile = null;
@@ -5922,6 +5947,25 @@ function cpuWorstTile(p) {
   });
   return worst;
 }
+function riichiKanOk51(pi, k) {
+  // 51のリーチ後カンの可否 (bd指示 2026-11-21: 通常麻雀の「待ちが変わらない場合のみ可」を51にも適用)。
+  // 51にはツモがなく、カン後の嶺上牌はそのまま手牌に残るので、「現在の待ち」と
+  // 「カンして嶺上を引いた後の手の待ち」が一致する場合だけ許可する。
+  if (!G.deadWall.length) return false;
+  var p = G.players[pi];
+  var R = G.deadWall[G.deadWall.length - 1];
+  var before = playerWaits(p);
+  if (!before.length) return false;
+  var pc = playerCounts(p, null);
+  var counts = pc.counts.slice();
+  var meldsAfter = p.melds.length;
+  if (k.kind === 'ankan') { if (counts[k.tile] < 4) return false; counts[k.tile] -= 4; meldsAfter += 1; }
+  else { if (counts[k.tile] < 1) return false; counts[k.tile] -= 1; }
+  counts[R.t] += 1;
+  var ctx = { seatWind: seatWindOf(pi), roundWind: roundWindOf() };
+  var after = MJ.findWaits(counts, meldsAfter, pc.wildCount, ctx);
+  return before.length === after.length && before.every(function (w) { return after.indexOf(w) >= 0; });
+}
 async function riichiTurn51(pi) {
   var p = G.players[pi];
   while (true) {
@@ -5952,10 +5996,9 @@ async function riichiTurn51(pi) {
         return 'win';
       }
     }
-    // リーチ後のカン (手牌にある牌だけ・待ちが変わらないものだけ)。嶺上ツモがなければ嶺上牌をツモ切りする
-    // 51のリーチは手牌が固定でツモがないため、通常の「待ち不変」条件ではカンが成立しない。
-    // 51ではリーチ後もカンできるものとする (カン後の手は自己責任)
-    var kans51 = G.deadWall.length ? kanOptions(pi) : [];
+    // リーチ後のカン: 通常麻雀の「待ちが変わらない場合のみ可」を51にも適用する (bd指示 2026-11-21)。
+    // 51にはツモがなく嶺上牌はそのまま手牌に残るため、判定は riichiKanOk51 (カン+嶺上後の待ちで比較) を通ったものだけを出す
+    var kans51 = G.deadWall.length ? kanOptions(pi).filter(function (k) { return riichiKanOk51(pi, k); }) : [];
     if (kans51.length) {
       var doKan51 = false;
       if (p.isHuman) {
@@ -5976,16 +6019,9 @@ async function riichiTurn51(pi) {
           evr51 = evalWin(p, G.lastDrawn.t, { tsumo: true, rinshan: true });
           if (evr51) { await doWinTsumo(pi, evr51); return 'win'; }
         }
-        var rt51 = G.lastDrawn;
-        p.hand.splice(p.hand.indexOf(rt51), 1);
-        sortHand(p);
-        var drec51 = { tile: rt51, riichi: false, protected: false, called: false };
-        p.discards.push(drec51); p.discardTypes.push(rt51.t);
-        p.firstDiscardDone = true; G.totalDiscards++;
+        // 嶺上牌はそのまま手牌に残してターンを終える (51は手牌13枚からカンするので、
+        // 嶺上を切ると手が1枚不足して二度と上がれなくなる)
         renderAll();
-        var oc51 = await resolveDiscard(pi, { tile: rt51, drec: drec51 });
-        if (oc51 && oc51.type === 'win') return 'win';
-        if (oc51 && oc51.type === 'call') return postCall51(oc51, rt51);
         return {};
       }
     }
@@ -6496,7 +6532,7 @@ async function sashiDiscardWindow(pi, dInfo) {
     var doCall = null;
     if (q.isHuman) {
       var btns = [];
-      if (kind === 'kan') btns.push({ label: 'カン！ ' + MJ.TILE_NAMES[tile.t], value: 'kan' });
+      if (kind === 'kan') { btns.push({ label: 'カン！ ' + MJ.TILE_NAMES[tile.t], value: 'kan' }); btns.push({ label: 'ポン！ ' + MJ.TILE_NAMES[tile.t], value: 'pon' }); }
       else if (kind === 'pon') btns.push({ label: 'ポン！ ' + MJ.TILE_NAMES[tile.t], value: 'pon' });
       if (seqs.length) btns.push({ label: 'チー！ ' + MJ.TILE_NAMES[tile.t], value: 'chi' });
       if (btns.length) {
