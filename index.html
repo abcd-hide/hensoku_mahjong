@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-21-102]</title>
+<title>変則麻雀 [build 2026-11-21-103]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -204,7 +204,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-21-102</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-21-103</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -1412,7 +1412,7 @@ function nextHand(first) {
     for (var r2 = 0; r2 < 13; r2++) for (var di = 0; di < 2; di++) G.players[dealOrder[di]].hand.push(G.wall.pop());
   } else {
     for (var r = 0; r < 13; r++) for (var pi = 0; pi < NP(); pi++) G.players[(G.dealer + pi) % NP()].hand.push(G.wall.pop());
-    if (S.variant === 'exchange') for (var pi2 = 0; pi2 < 4; pi2++) G.players[pi2].hand.push(G.wall.pop());
+    if (S.variant === 'exchange') for (var pi2 = 0; pi2 < NP(); pi2++) G.players[pi2].hand.push(G.wall.pop());
   }
   if (S.variant === 'fourdraw') { G.draftStarter = G.dealer; G.draftBatch = []; }
   G.players.forEach(function (p) { sortHand(p); });
@@ -2529,7 +2529,7 @@ if (oIdxH >= 0 && G.players[oIdxH].isHuman && !G.players[oIdxH].riichi) {
 for (var wi = claimers.length - 1; wi >= 0; wi--) {
 if (claimers[wi].kind === 'wild' && claimers[wi].pi === oIdxH) { humanWildOpts = claimers[wi].options; claimers.splice(wi, 1); }
 }
-if (oIdxH === (pi + 1) % NP()) humanWildChiOpts = wildChiOptions(G.players[oIdxH]);
+if (!isSanma() && oIdxH === (pi + 1) % NP()) humanWildChiOpts = wildChiOptions(G.players[oIdxH]); // サンマはチーなし (オーマイ万能チーも不可)
 if (!claimers.some(function (c) { return c.pi === oIdxH; }) && (humanWildOpts.length || humanWildChiOpts.length)) {
 var oRank = humanWildOpts.some(function (o) { return o.callKind === 'kan'; }) ? 0 : 1;
 var pos = claimers.length;
@@ -2756,7 +2756,7 @@ async function simultaneousDiscardAndResolve(preWins) {
   var plans = [];
   var winTileIds = {};
   preWins.forEach(function (w) { winTileIds[w.pi] = w.tile.id; });
-  for (var pi = 0; pi < 4; pi++) {
+  for (var pi = 0; pi < NP(); pi++) {
     var p = G.players[pi];
     if (winTileIds[pi] !== undefined) { plans[pi] = { tileId: winTileIds[pi], _pre: true }; continue; }
     if (!p.isHuman) {
@@ -2769,7 +2769,7 @@ async function simultaneousDiscardAndResolve(preWins) {
     }
   }
   var dInfos = [];
-  for (var pj = 0; pj < 4; pj++) {
+  for (var pj = 0; pj < NP(); pj++) {
     G.current = pj; // 同時進行でも「今捨てる人」を current にしないと人間のクリックが番チェックで弾かれる
     var pl = plans[pj];
     var wasRiichi = G.players[pj].riichi;
@@ -2782,7 +2782,7 @@ async function simultaneousDiscardAndResolve(preWins) {
     if (!wasRiichi && G.players[pj].riichi) G.players[pj].ippatsuFresh = true;
   }
   var wins = preWins.slice();
-  for (var dk = 0; dk < 4; dk++) {
+  for (var dk = 0; dk < NP(); dk++) {
     var dPi = (G.dealer + dk) % NP();
     var rw = await collectRons(dPi, dInfos[dPi]);
     wins = wins.concat(rw);
@@ -2909,7 +2909,7 @@ async function drawPhaseAction(pi) {
 }
 async function roundExchange() {
   var passes = [], received = [];
-  for (var pi = 0; pi < 4; pi++) {
+  for (var pi = 0; pi < NP(); pi++) {
     var p = G.players[pi], tile = null;
     if (p.riichi) tile = p.hand.find(function (t) { return t.id === p.extraTileId; }) || p.hand[p.hand.length - 1];
     else if (p.isHuman) {
@@ -2930,7 +2930,7 @@ async function roundExchange() {
   log('全員が下家へ1枚渡した');
   renderAll();
   var preWins = [];
-  for (var wi = 0; wi < 4; wi++) {
+  for (var wi = 0; wi < NP(); wi++) {
     var wp = G.players[wi], rt = received[wi];
     if (!rt) continue;
     var ev = evalWin(wp, rt.t, { tsumo: true, winningRed: rt.red });
@@ -2943,7 +2943,7 @@ async function roundExchange() {
     log(wp.name + ' は回ってきた牌でツモ宣言');
   }
   // パスで受け取った牌でカンできる場合 (暗槓/加槓) は、捨てる前に宣言できる (4枚ヅモのドラフト後と同じ扱い)
-  for (var ki2 = 0; ki2 < 4; ki2++) {
+  for (var ki2 = 0; ki2 < NP(); ki2++) {
     var kp = G.players[ki2];
     if (kp.riichi) continue;
     if (preWins.some(function (w) { return w.pi === ki2; })) continue;
@@ -2969,7 +2969,7 @@ async function roundExchange() {
   }
   var res = await simultaneousDiscardAndResolve(preWins);
   if (res === 'win') return 'win';
-  for (var k = 0; k < 4; k++) {
+  for (var k = 0; k < NP(); k++) {
     var dpi = (G.exchStarter + k) % NP();
     if (!G.wall.length) break;
     var dr = await drawPhaseAction(dpi);
@@ -2998,7 +2998,7 @@ async function playLoopExchange() {
    リーチ後のロンは原典では「0発」2翻だが、筆者方式の一発扱いを採用する。 */
 async function roundFourdraw() {
   var batch = [];
-  var n = Math.min(4, G.wall.length);
+  var n = Math.min(NP(), G.wall.length); // ドラフトは全員1枚ずつ (サンマは3枚)
   for (var i = 0; i < n; i++) batch.push(G.wall.pop());
   G.draftBatch = batch.slice();
   var starter = G.draftStarter;
@@ -3081,7 +3081,7 @@ async function playLoopFourdraw() {
 function isDoubtVariant() { return S.variant === 'doubt' || S.variant === 'gdoubt'; }
 // サンマ (3人麻雀) — bd要望 2026-11-21。段階導入: 第1弾は standard/allmighty/doubt のみ対応。
 var SANMA_NG = ['sashi', 'group', 'gdoubt', 'chain', 'napoleon']; // 2人用・パートナー制・軍勢払い前提 (bd決定)
-var SANMA_TODO = ['survival', 'roleplay', 'fiftyone', 'exchange', 'fourdraw', 'poverty', 'uno', 'bridge', 'narabe']; // 順次対応
+var SANMA_TODO = []; // build103: 全バリアント対応済み
 function isSanma() { return Number(S.playerCount || 4) === 3; }
 function NP() { return G ? G.players.length : (isSanma() ? 3 : 4); }
 function sanmaAllows(v) { return !isSanma() || (SANMA_NG.indexOf(v) < 0 && SANMA_TODO.indexOf(v) < 0); }
@@ -4487,7 +4487,7 @@ async function narabeJokerDiscard(pi, jokerTile) {
   var p = G.players[pi];
   var targetPi;
   if (p.isHuman) {
-    var opts = [0, 1, 2, 3].filter(function (x) { return x !== pi; }).map(function (x) { return { label: G.players[x].name + ' の河へ', value: x }; });
+    var opts = G.players.map(function (_, x) { return x; }).filter(function (x) { return x !== pi; }).map(function (x) { return { label: G.players[x].name + ' の河へ', value: x }; });
     targetPi = await modalChoice('<h3>ジョーカーを誰の河に捨てますか？</h3>', opts);
     if (targetPi === null || targetPi === undefined) targetPi = (pi + 1) % NP();
   } else targetPi = (pi + 1) % NP();
@@ -4792,7 +4792,7 @@ function bridgeTrickWinner(plays) {
 }
 async function bridgeDraft(starter) {
   var batch = [];
-  var n = Math.min(4, G.wall.length);
+  var n = Math.min(NP(), G.wall.length); // ドラフトは全員1枚ずつ (サンマは3枚)
   for (var i = 0; i < n; i++) batch.push(G.wall.pop());
   G.draftBatch = batch.slice();
   var keptBy = {};
@@ -5637,7 +5637,7 @@ async function povertyExchangePhase() {
     pairs.push({ t: info.tycoon, g: info.pauper, count: 2, noHaku: false });
   } else if (info.kind === 'tsumo') {
     G.players[info.tycoon].povertyRole = 'tycoon';
-    [0, 1, 2, 3].filter(function (i) { return i !== info.tycoon; }).forEach(function (gi) {
+    G.players.map(function (_, i) { return i; }).filter(function (i) { return i !== info.tycoon; }).forEach(function (gi) {
       G.players[gi].povertyRole = 'poor';
       pairs.push({ t: info.tycoon, g: gi, count: 1, noHaku: false });
     });
@@ -6705,7 +6705,7 @@ async function doWinTsumo(pi, ev, special) {
   var dispTotal = ev.score.total;
   if (S.variant === 'survival' && special) {
     var total75 = Math.ceil(ev.score.total * 0.75 / 100) * 100;
-    var each = Math.ceil(total75 / 3 / 100) * 100;
+    var each = Math.ceil(total75 / (NP() - 1) / 100) * 100;
     G.players.forEach(function (q, qi) { if (qi !== pi) { q.score -= each; p.score += each; } });
     details = '特殊ツモ（3人宣言後の到達）: 通常の4分の3 = 各' + each + '点払い';
   } else if (S.variant === 'survival') {
@@ -6807,8 +6807,8 @@ async function doRyukyoku() {
   var tenpai = G.players.map(function (p) { return S.variant === 'uno' ? unoIsTenpai(p) : playerShanten(p) === 0; });
   if (S.variant === 'poverty') {
     G.nextPoverty = { kind: 'ryukyoku',
-      rich: [0, 1, 2, 3].filter(function (i) { return tenpai[i]; }),
-      poor: [0, 1, 2, 3].filter(function (i) { return !tenpai[i]; }) };
+      rich: G.players.map(function (_, i) { return i; }).filter(function (i) { return tenpai[i]; }),
+      poor: G.players.map(function (_, i) { return i; }).filter(function (i) { return !tenpai[i]; }) };
   }
   var nTen = tenpai.filter(Boolean).length;
   var html = '<h3>流局</h3>';
@@ -6833,7 +6833,7 @@ async function doRyukyoku() {
 }
 async function ryukyokuSurvival() {
   var html = '<h3>流局（サバイバル）</h3>';
-  for (var i = 0; i < 4; i++) {
+  for (var i = 0; i < NP(); i++) {
     var p = G.players[i];
     var penalty = 0, reason = '';
     if (p.declared) {
