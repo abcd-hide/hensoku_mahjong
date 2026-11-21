@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-21-108]</title>
+<title>変則麻雀 [build 2026-11-21-109]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -204,7 +204,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-21-108</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-21-109</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -5893,6 +5893,14 @@ function cpuWorstTile(p) {
   });
   return worst;
 }
+function riichiKanOk51(pi, k) {
+  // 51のリーチ中はツモ牌が手牌に無いので、基準の待ちは「今の手牌の待ち」で判定する
+  var saved = G.lastDrawn;
+  G.lastDrawn = null;
+  var ok = riichiKanOk(pi, k);
+  G.lastDrawn = saved;
+  return ok;
+}
 async function riichiTurn51(pi) {
   var p = G.players[pi];
   while (true) {
@@ -5921,6 +5929,41 @@ async function riichiTurn51(pi) {
         p.hand.push(winTile); G.lastDrawn = winTile;
         await doWinTsumo(pi, ev);
         return 'win';
+      }
+    }
+    // リーチ後のカン (手牌にある牌だけ・待ちが変わらないものだけ)。嶺上ツモがなければ嶺上牌をツモ切りする
+    var kans51 = G.deadWall.length ? kanOptions(pi).filter(function (k) { return riichiKanOk51(pi, k); }) : [];
+    if (kans51.length) {
+      var doKan51 = false;
+      if (p.isHuman) {
+        var kb51 = kans51.map(function (k, i) { return { label: (k.kind === 'ankan' ? '暗槓 ' : '加槓 ') + MJ.TILE_NAMES[k.tile], value: i }; });
+        kb51.push({ label: 'カンしない', value: 'none', cls: 'sub' });
+        var ka51 = await waitHuman(kb51);
+        doKan51 = ka51 !== 'none' && ka51 !== null && ka51 !== undefined;
+        if (doKan51) kans51 = [kans51[Number(ka51)]];
+      } else doKan51 = Math.random() < 0.55;
+      if (doKan51) {
+        var robbed51 = await executeKan(pi, kans51[0]);
+        if (robbed51) return 'win';
+        var dr51 = await doDraw(pi, true);
+        if (!dr51) return 'exhaustive';
+        var evr51 = evalWin(p, G.lastDrawn.t, { tsumo: true, rinshan: true });
+        if (evr51) { await doWinTsumo(pi, evr51); return 'win'; }
+        if (isSanma() && await simulKitaPhase(pi)) {
+          evr51 = evalWin(p, G.lastDrawn.t, { tsumo: true, rinshan: true });
+          if (evr51) { await doWinTsumo(pi, evr51); return 'win'; }
+        }
+        var rt51 = G.lastDrawn;
+        p.hand.splice(p.hand.indexOf(rt51), 1);
+        sortHand(p);
+        var drec51 = { tile: rt51, riichi: false, protected: false, called: false };
+        p.discards.push(drec51); p.discardTypes.push(rt51.t);
+        p.firstDiscardDone = true; G.totalDiscards++;
+        renderAll();
+        var oc51 = await resolveDiscard(pi, { tile: rt51, drec: drec51 });
+        if (oc51 && oc51.type === 'win') return 'win';
+        if (oc51 && oc51.type === 'call') return postCall51(oc51, rt51);
+        return {};
       }
     }
     // リーチ後も、人数番目以降は中央を流せる (4人=4番目 bd指示 2026-11-15、サンマ=3番目 bd指示 2026-11-21)。流したら新しい中央で当たりを再判定する
