@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-21-105]</title>
+<title>変則麻雀 [build 2026-11-21-106]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -204,7 +204,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-21-105</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-21-106</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -1400,7 +1400,7 @@ function nextHand(first) {
   G.uraIndicators = [G.deadWall[5]];
   G.kanDoraQueue = [G.deadWall[6], G.deadWall[8]];
   G.kanUraQueue = [G.deadWall[7], G.deadWall[9]];
-  if (S.variant === 'fiftyone') { G.center51 = []; for (var c51 = 0; c51 < 4; c51++) G.center51.push(G.wall.pop()); G.centerAge = 0; }
+  if (S.variant === 'fiftyone') { G.center51 = []; for (var c51 = 0; c51 < NP(); c51++) G.center51.push(G.wall.pop()); G.centerAge = 0; } // 中央は人数分 (サンマは3枚)
   G.kanDoraCount = 0;
   G.immediateDoubt = null; G.doubtChoice = null; G.doubtBusy = false;
   G.turnCount = 0; G.anyCall = false; G.totalDiscards = 0; G.lastDiscard = null; G.rinshan = false; G.kanInHand = 0;
@@ -1742,7 +1742,7 @@ function renderAll() {
     if (S.variant === 'narabe' && G.narabeBoard) { npEl.innerHTML = narabeBoardHTML(); npEl.classList.remove('hidden'); }
     else { npEl.innerHTML = ''; npEl.classList.add('hidden'); }
   }
-  $('variant-info').textContent = ({ standard: '通常麻雀', allmighty: 'オールマイティ麻雀（金色★=万能牌、1枚-1翻）', survival: 'サバイバル麻雀（テンパイ宣言必須・点数は減る一方）', roleplay: 'ロールプレイ麻雀（字牌を捨てて特技取得）', fiftyone: '51麻雀（中央の4枚と手牌を交換しながら進める）', sashi: '二人麻雀（対面と2人対戦・上がり形2つで点数移動）', exchange: '交換麻雀（全員同時にパス＆捨て牌・ダブルロンあり）', fourdraw: '4枚ヅモ麻雀（4枚ドラフト＆回し打ち）', group: 'タッグ麻雀（対面とペア・捨て牌の種類で次の番が決まる）', poverty: '大貧民／大富豪麻雀（役職と交換・8切り・革命・縛り）', uno: 'UNO麻雀（ツモか捨てるのどちらか・色か数字を合わせる）', chain: 'チェイン麻雀（相方と交換・チェインで翻数加算）', bridge: 'ブリッジ麻雀（ドラフト4枚＋トリックテイキング）', narabe: '並べ麻雀（中央ボード＋5枚ごとの手牌オープン）', napoleon: 'ナポレオン麻雀（ビットで決まる主役＋副官）', doubt: 'ダウト麻雀（嘘の鳴き・嘘リーチ・嘘ロンとダウト）', gdoubt: 'ダウトタッグ麻雀（タッグ×ダウト）' })[S.variant] || '';
+  $('variant-info').textContent = ({ standard: '通常麻雀', allmighty: 'オールマイティ麻雀（金色★=万能牌、1枚-1翻）', survival: 'サバイバル麻雀（テンパイ宣言必須・点数は減る一方）', roleplay: 'ロールプレイ麻雀（字牌を捨てて特技取得）', fiftyone: '51麻雀（中央の牌（人数分）と手牌を交換しながら進める）', sashi: '二人麻雀（対面と2人対戦・上がり形2つで点数移動）', exchange: '交換麻雀（全員同時にパス＆捨て牌・ダブルロンあり）', fourdraw: '4枚ヅモ麻雀（4枚ドラフト＆回し打ち）', group: 'タッグ麻雀（対面とペア・捨て牌の種類で次の番が決まる）', poverty: '大貧民／大富豪麻雀（役職と交換・8切り・革命・縛り）', uno: 'UNO麻雀（ツモか捨てるのどちらか・色か数字を合わせる）', chain: 'チェイン麻雀（相方と交換・チェインで翻数加算）', bridge: 'ブリッジ麻雀（ドラフト4枚＋トリックテイキング）', narabe: '並べ麻雀（中央ボード＋5枚ごとの手牌オープン）', napoleon: 'ナポレオン麻雀（ビットで決まる主役＋副官）', doubt: 'ダウト麻雀（嘘の鳴き・嘘リーチ・嘘ロンとダウト）', gdoubt: 'ダウトタッグ麻雀（タッグ×ダウト）' })[S.variant] || '';
   var seatsEl = $('seats'); seatsEl.innerHTML = '';
   for (var pi = 0; pi < G.players.length; pi++) {
     var p = G.players[pi];
@@ -5809,9 +5809,9 @@ function groupPinBonus(p, winTileType, isTsumo) {
 
 
 /* ================= 51麻雀 =================
-   中央に4枚を公開し、自分の番に「中央の1枚 ⇔ 手牌の1枚」を交換する。
+   中央に人数分 (4人=4枚/サンマ=3枚) を公開し、自分の番に「中央の1枚 ⇔ 手牌の1枚」を交換する。
    交換で出た牌は通常の捨て牌と同じくロン/鳴きの対象になる（鳴かれたら鳴いた人が手牌から1枚を中央へ補充し、
-   その次の人から再開）。新しい4枚が開けてから4番目以降の人は、中央の4枚を自分の河へ「流す」ことができる。
+   その次の人から再開）。新しい中央が開けてから4番目以降の人は、中央の牌を自分の河へ「流す」ことができる。
    リーチ中は交換せず、中央に当たり牌があればツモ、無ければ中央の1枚を「捨てたもの」とみなして進行する。
    著者注の任意ルールを採用: リーチは-1翻、食い上がりは開いた副露1つにつき+1翻（evalWin内で補正）。 */
 function declareRiichi51(pi) {
@@ -5828,7 +5828,7 @@ function flush51(pi) {
   log(p.name + ' 中央の牌を流した（自分の河へ）');
   playTileSound();
   if (!G.wall.length) return 'exhaustive';
-  var n = Math.min(4, G.wall.length);
+  var n = Math.min(NP(), G.wall.length);
   for (var i = 0; i < n; i++) G.center51.push(G.wall.pop());
   G.centerAge = 0;
   renderAll();
