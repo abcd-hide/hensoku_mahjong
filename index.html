@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-21-107]</title>
+<title>変則麻雀 [build 2026-11-21-108]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -204,7 +204,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-21-107</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-21-108</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -2503,7 +2503,7 @@ if (S.variant === 'chain' && G.chainOut && G.chainOut[qi]) continue;
 if (S.variant === 'bridge' && G.bridgeNoRon && G.bridgeNoRon[qi]) continue;
 if (almightyFoulNow(q)) { markShapeFuriten(q, tile.t); continue; }
 var ev = evalWin(q, tile.t, { tsumo: false, houtei: houtei, winningRed: tile.red &&!tile.wild,
-firstTurn:!q.hasDrawn && G.totalDiscards <= 4});
+firstTurn:!q.hasDrawn && G.totalDiscards <= NP()});
 if (!ev) { markShapeFuriten(q, tile.t); continue; }
 if (isFuriten(q)) { continue;}
 if (q.isHuman) {
@@ -3839,7 +3839,7 @@ async function doubtRonPhase(pi, tile, houtei) {
     if (almightyFoulNow(q)) { markShapeFuriten(q, tile.t); continue; }
     var trueEv = null;
     if (!isFuriten(q)) {
-      trueEv = evalWin(q, tile.t, { tsumo: false, houtei: houtei, winningRed: tile.red && !tile.wild, firstTurn: !q.hasDrawn && G.totalDiscards <= 4 });
+      trueEv = evalWin(q, tile.t, { tsumo: false, houtei: houtei, winningRed: tile.red && !tile.wild, firstTurn: !q.hasDrawn && G.totalDiscards <= NP() });
     }
     var fakeEv = null;
     // 嘘ロンにもフリテンを適用する (bd指示 2026-11-17 確定): フリテン中は本物・嘘を問わず
@@ -3852,7 +3852,7 @@ async function doubtRonPhase(pi, tile, houtei) {
       var w = waits[wi];
       if (!doubtMatchType(w, tile.t)) continue;
       hasMatchingWait = true;
-      var ev2 = evalWin(q, w, { tsumo: false, houtei: houtei, winningRed: false, firstTurn: !q.hasDrawn && G.totalDiscards <= 4 });
+      var ev2 = evalWin(q, w, { tsumo: false, houtei: houtei, winningRed: false, firstTurn: !q.hasDrawn && G.totalDiscards <= NP() });
       if (ev2 && (!fakeEv || ev2.score.total > fakeEv.score.total)) fakeEv = ev2;
     }
     // 嘘の待ち自体で役がつかない場合は嘘ロンできない (bd決定 2026-11-19 A案「宣言を厳しく」)。
@@ -5824,6 +5824,7 @@ function declareRiichi51(pi) {
 function flush51(pi) {
   var p = G.players[pi];
   G.center51.forEach(function (t) { p.discards.push({ tile: t, riichi: false, protected: false, called: false }); p.discardTypes.push(t.t); });
+  p.firstDiscardDone = true;
   G.center51 = [];
   log(p.name + ' 中央の牌を流した（自分の河へ）');
   playTileSound();
@@ -5973,6 +5974,7 @@ async function humanExchange51(pi) {
       var btns = [];
       if (ev) btns.push({ label: 'ツモ！ ' + hanText(ev) + ' ' + ev.fu + '符', value: 'tsumo' });
       kans.forEach(function (k, i) { btns.push({ label: (k.kind === 'ankan' ? '暗槓 ' : '加槓 ') + MJ.TILE_NAMES[k.tile], value: 'kan' + i }); });
+      if (canKita(p)) btns.push({ label: '北を抜く（ドラ+1）', value: 'kita' });
       log('出す牌を手牌から選んでください');
       var pick = await waitPutOrButton51(btns);
       if (pick.button === 'tsumo' && ev) { await doWinTsumo(pi, ev); return 'win'; }
@@ -5984,12 +5986,19 @@ async function humanExchange51(pi) {
         kans = kanOptions(pi);
         continue;
       }
+      if (pick.button === 'kita') {
+        await doKita(pi);
+        ev = evalWin(p, G.lastDrawn.t, { tsumo: true, rinshan: true });
+        kans = kanOptions(pi);
+        continue;
+      }
       var putTile = p.hand.find(function (t) { return t.id === pick.tileId; });
       if (!putTile) continue;
       var kui51 = kuikaeActive(p);
       if (kui51 && kui51.indexOf(putTile.t) >= 0) { log('喰い替えのため ' + MJ.TILE_NAMES[putTile.t] + ' は出せません'); continue; }
       p.hand.splice(p.hand.indexOf(putTile), 1);
       p.kuikae = null;
+      p.firstDiscardDone = true; G.totalDiscards++;
       G.center51.push(putTile); sortHand(p); renderAll();
       var outcome = await resolveDiscard(pi, { tile: putTile, drec: { tile: putTile, riichi: false, protected: false, called: false } });
       if (outcome && outcome.type === 'win') return 'win';
@@ -6034,6 +6043,10 @@ async function cpuExchange51(pi) {
   if (!best) return {};
   G.center51 = G.center51.filter(function (t) { return t.id !== best.take.id; });
   p.hand.push(best.take);
+  if (isSanma() && await simulKitaPhase(pi)) {
+    var evk2 = evalWin(p, G.lastDrawn.t, { tsumo: true, rinshan: true });
+    if (evk2) { await doWinTsumo(pi, evk2); return 'win'; }
+  }
   var kans = kanOptions(pi);
   if (kans.length && Math.random() < 0.5) {
     var robbed = await executeKan(pi, kans[0]);
@@ -6043,6 +6056,7 @@ async function cpuExchange51(pi) {
     if (evk) { await doWinTsumo(pi, evk); return 'win'; }
     best.put = cpuWorstTile(p);
   }
+  p.firstDiscardDone = true; G.totalDiscards++;
   var putTile = best.put && p.hand.indexOf(best.put) >= 0 ? best.put : cpuWorstTile(p);
   if (putTile && kui51c && kui51c.indexOf(putTile.t) >= 0) putTile = p.hand.find(function (t) { return kui51c.indexOf(t.t) < 0; }) || putTile;
   if (!putTile) return {};
@@ -6056,6 +6070,7 @@ async function cpuExchange51(pi) {
 }
 async function turn51(pi) {
   var p = G.players[pi];
+  p.hasDrawn = true; // 51ではターン開始が初ツモ相当 (人和の判定に使う)
   if (p.riichi) return riichiTurn51(pi);
   if (isSanma()) await simulKitaPhase(pi);
   if (p.menzen && playerShanten(p) === 0 && p.score >= 1000) {
