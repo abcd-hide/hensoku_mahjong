@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-21-100]</title>
+<title>変則麻雀 [build 2026-11-21-101]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -204,7 +204,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-21-100</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-21-101</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -6656,7 +6656,7 @@ function hanText(ev) {
   var riichiWin = ev.yaku.some(function (y) { return y.name === '立直' || y.name === 'ダブルリーチ' || y.name === 'オープン立直'; });
   return (ura > 0 || riichiWin) ? (ev.han - ura) + '翻+裏ドラ' : ev.han + '翻';
 }
-function winDetailHTML(p, ev, title, winInfo) {
+function winDetailHTML(p, ev, title, winInfo, dispTotal) {
   var html = '<h3>' + title + '</h3>';
   // 手牌 + 上がり牌
   var winTile = winInfo && winInfo.tile ? winInfo.tile : null;
@@ -6682,8 +6682,9 @@ function winDetailHTML(p, ev, title, winInfo) {
   html += '<table class="yaku-table">' + ev.yaku.map(function (y) {
     return '<tr><td>' + y.name + '</td><td class="yhan">' + (y.yakuman ? '役満' : y.han + '翻') + '</td></tr>';
   }).join('') + '</table>';
-  html += '<p class="win-total"><b>' + (ev.yakumanCount ? (ev.label || MJ.HAN_LABEL(ev.han, ev.yakumanCount, {})) + ' ' + ev.score.total + '点'
-    : ev.han + '翻 ' + ev.fu + '符' + (ev.label ? ' ' + ev.label : '') + ' ' + ev.score.total + '点') + '</b>' +
+  var totalDisp = (dispTotal != null ? dispTotal : ev.score.total);
+  html += '<p class="win-total"><b>' + (ev.yakumanCount ? (ev.label || MJ.HAN_LABEL(ev.han, ev.yakumanCount, {})) + ' ' + totalDisp + '点'
+    : ev.han + '翻 ' + ev.fu + '符' + (ev.label ? ' ' + ev.label : '') + ' ' + totalDisp + '点') + '</b>' +
     (ev.wildPenaltyApplied ? '（オールマイティ ' + ev.wildPenaltyApplied + '枚で -' + ev.wildPenaltyApplied + '翻済み）' : '') + '</p>';
   return html;
 }
@@ -6701,6 +6702,7 @@ async function doWinTsumo(pi, ev, special) {
   speakCall('ツモ');
   var p = G.players[pi];
   var details = '';
+  var dispTotal = ev.score.total;
   if (S.variant === 'survival' && special) {
     var total75 = Math.ceil(ev.score.total * 0.75 / 100) * 100;
     var each = Math.ceil(total75 / 3 / 100) * 100;
@@ -6710,19 +6712,22 @@ async function doWinTsumo(pi, ev, special) {
     // 通常ツモは発生しない (宣言者はツモせず、未宣言は上がれない)
     details = '';
   } else {
+    var collected = 0; // 実際に支払われた基本点の合計 (サンマは2人分しかないので score.total とずれる)
     G.players.forEach(function (q, qi) {
       if (qi === pi) return;
       var basePay = (pi === G.dealer || qi === G.dealer) ? (ev.score.dealerPay || ev.score.all) : ev.score.childPay;
       if (ev.score.all) basePay = ev.score.all;
       if (q.ability === 'tsumorarenai') { log(q.name + ' は特技「ツモられない」で支払いなし'); return; }
+      collected += basePay;
       var pay = adjustPayment(q, p, basePay + G.honba * 100);
       q.score -= pay; p.score += pay;
     });
+    dispTotal = collected;
     if (G.kyotaku) { p.score += G.kyotaku * 1000; log(p.name + ' は供託 ' + G.kyotaku * 1000 + '点を受け取った'); G.kyotaku = 0; }
     details = 'ツモ ' + (ev.score.label || '');
   }
-  log(p.name + ' ツモ上がり ' + hanText(ev) + ev.fu + '符 ' + ev.score.total + '点');
-  await finishHand({ winner: pi, ev: ev, html: winDetailHTML(p, ev, p.name + ' ツモ上がり', special ? null : { kind: 'tsumo', tile: G.lastDrawn }) + '<p>' + details + '</p>' });
+  log(p.name + ' ツモ上がり ' + hanText(ev) + ev.fu + '符 ' + dispTotal + '点');
+  await finishHand({ winner: pi, ev: ev, html: winDetailHTML(p, ev, p.name + ' ツモ上がり', special ? null : { kind: 'tsumo', tile: G.lastDrawn }, dispTotal) + '<p>' + details + '</p>' });
 }
 async function doWinRon(winners, discarderIdx, tile) {
   if (S.variant === 'chain') {
