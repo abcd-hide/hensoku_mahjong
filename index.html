@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-21-103]</title>
+<title>変則麻雀 [build 2026-11-21-104]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -204,7 +204,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-21-103</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-21-104</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -303,6 +303,11 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
         <select id="set-doubtwildkind">
           <option value="five">5</option>
           <option value="flower">春夏秋冬</option>
+        </select></label>
+      <label>ロールプレイ: 特技の数
+        <select id="set-rpabilities">
+          <option value="1">1つのみ</option>
+          <option value="2">2つまで</option>
         </select></label>
       <p class="note">サバイバルは原典通り10000点持ち・点数は減る一方、ドボンで終了。</p>
     </fieldset>
@@ -1200,7 +1205,7 @@ var VARIANT_DESC = {
   standard: '通常の四人麻雀。ローカルルール・ローカル役は設定で選べる。',
   allmighty: '赤5牌（各1枚）がオールマイティ（何にでもなる）。持っているだけで1枚につき-1翻されるが、評価はペナルティ後も上がれる中で最も点数が高くなるものを採用する。オールマイティ単騎の上がりは反則。フリテンは「上がれる全ての可能性」で判定される。',
   survival: '点数は減る一方、誰かが0点未満（ドボン）になるまで続ける。上がるにはテンパイ宣言が必須で、宣言後はツモをしない（ロン専用）。リーチ棒は不要・裏ドラ/カンドラなし。10000点持ち。',
-  roleplay: '通常麻雀+特技。字牌を捨てる時に、局に1回だけ特技を1つ取得できる（先着順・重複不可、その牌が鳴かれたら取得取消）。特技は8種類。',
+  roleplay: '通常麻雀+特技。字牌を捨てる時に特技を取得できる（先着順・重複不可、その牌が鳴かれたら取得取消）。取得できる数は設定で1つ/2つまでを選べます。特技は8種類。サンマでは特技「どこチー」を取ればチーできます。',
   fiftyone: '中央に公開された4枚と手牌を交換して進める麻雀。交換で出した牌はロン/鳴きの対象になり、鳴いた人は手牌から1枚を中央へ補充する。4番目以降は中央を自分の河へ「流す」ことができる。リーチは-1翻、食い上がりは開いた副露1つにつき+1翻（著者注の任意ルールを採用）。',
   sashi: '2人対戦。ツモは2枚・捨ては1枚、鳴いたら捨てなくてよい。先に2組の上がりを完成させた方が勝ちで、点数移動は2組目が成立した時に2組分まとめて行う。ツモの受取は一人分のみ。1組目の後は14枚に戻るまでツモのみで補充する。',
   exchange: '全員14枚から開始し、同時に下家へ1枚パス→同時に捨て→順番に1枚ツモ、を繰り返す。同時に捨てた牌へのロンは複数人・複数回とも同時成立する。鳴きは何回でもでき、鳴くたびに1枚切る。回ってきた牌で上がっていれば捨てのタイミングでツモ宣言する。',
@@ -1223,7 +1228,7 @@ var DEFAULT_SETTINGS = {
   noCall: false, // 鳴きなしフラグ: ONの間、他家の捨て牌への鳴きは自動でパスする
   noDoubtClaim: false, // ダウト主張なしフラグ: ONの間、ダウトの主張は自動でパスする (鳴きなしとは別ボタン)
   doubtWilds: 4, // ダウト系のオールマイティ枚数 (4 or 8)
-  doubtWildKind: 'five' // ダウト系の万能牌の種類: 'five' = 5, 'flower' = 春夏秋冬
+  doubtWildKind: 'five', roleplayAbilities: 1 // ダウト系の万能牌の種類: 'five' = 5, 'flower' = 春夏秋冬
 };
 var S = loadSettings();
 function loadSettings() {
@@ -1358,7 +1363,7 @@ function newPlayer(name, isHuman) {
   return { name: name, isHuman: !!isHuman, score: 0, hand: [], melds: [], kita: [], discards: [], discardTypes: [],
     riichi: false, riichiTurn: -1, doubleRiichi: false, openRiichi: false, ippatsu: false,
     tempFuriten: false, riichiFuriten: false, hasDrawn: false, drawsTaken: 0,
-    declared: false, ability: null, abilityState: {}, grantedOnDiscard: null, menzen: true, firstDiscardDone: false };
+    declared: false, abilities: [], abilityState: {}, grantedOnDiscard: null, menzen: true, firstDiscardDone: false };
 }
 function startMatch() {
   $('settings-panel').classList.add('hidden');
@@ -1404,7 +1409,7 @@ function nextHand(first) {
     p.hand = []; p.melds = []; p.kita = []; p.discards = []; p.discardTypes = [];
     p.riichi = false; p.doubleRiichi = false; p.openRiichi = false; p.ippatsu = false;
     p.tempFuriten = false; p.riichiFuriten = false; p.hasDrawn = false; p.drawsTaken = 0; p.unoDeclared = false; p.fixed = false; p.openTileIds = []; p.narabeObligDone = {}; p.riichiStacks = 0; p.ownTurns = 0; p.riichiAtOwnTurn = -9; p.lastDoubtActionTurn = -1; p.lastStackOwnTurn = -1; p.kuikae = null;
-    p.declared = false; p.ability = null; p.abilityState = {}; p.grantedOnDiscard = null; p.menzen = true; p.firstDiscardDone = false; p.stackMarkTurn = false;
+    p.declared = false; p.abilities = []; p.abilityState = {}; p.grantedOnDiscard = null; p.menzen = true; p.firstDiscardDone = false; p.stackMarkTurn = false;
     p.winGroups = []; p.sashiRefill = false;
   });
   if (S.variant === 'sashi') {
@@ -1431,7 +1436,7 @@ function seatWindOf(pi) { return 27 + ((pi - G.dealer + NP()) % NP()); }
 function doraTypesNow(extraForPlayer) {
   var inds = G.doraIndicators.filter(function (ind) { return ind.t >= 0; }); // 花牌の表示牌はドラを生まない
   var types = inds.map(function (ind) { return MJ.nextTileForDora(ind.t); });
-  if (extraForPlayer && extraForPlayer.ability === 'dorabaku') {
+  if (extraForPlayer && hasAbility(extraForPlayer, 'dorabaku')) {
     inds.forEach(function (ind) { types.push(MJ.nextTileForDora(MJ.nextTileForDora(ind.t))); });
   }
   return types;
@@ -1440,7 +1445,7 @@ function uraTypesNow(extraForPlayer) {
   if (S.variant === 'survival' || !S.ura) return null;
   var inds2 = G.uraIndicators.filter(function (ind) { return ind.t >= 0; });
   var types = inds2.map(function (ind) { return MJ.nextTileForDora(ind.t); });
-  if (extraForPlayer && extraForPlayer.ability === 'dorabaku') {
+  if (extraForPlayer && hasAbility(extraForPlayer, 'dorabaku')) {
     inds2.forEach(function (ind) { types.push(MJ.nextTileForDora(MJ.nextTileForDora(ind.t))); });
   }
   return types;
@@ -1451,7 +1456,7 @@ function playerCounts(p, extraTileType) {
   var wildTiles = [], normal = [];
   var povTycoon = S.variant === 'poverty' && p.povertyRole === 'tycoon';
   p.hand.forEach(function (tile) { if (tile.joker) return; ((tile.wild || (povTycoon && tile.t === 31)) ? wildTiles : normal).push(tile); });
-  var oomai = S.variant === 'roleplay' && p.ability === 'oomai';
+  var oomai = S.variant === 'roleplay' && hasAbility(p, 'oomai');
   var seatW = seatWindOf(G.players.indexOf(p));
   var counts = new Array(34).fill(0);
   normal.forEach(function (tile) {
@@ -1487,12 +1492,12 @@ function evalWin(p, winningTileType, opts) {
     openRiichi: p.openRiichi, menzen: p.menzen, seatWind: seatWindOf(pi), roundWind: roundWindOf(),
     isDealer: pi === G.dealer, haitei: !!opts.haitei, houtei: !!opts.houtei, rinshan: !!opts.rinshan,
     chankan: !!opts.chankan, firstTurn: !!opts.firstTurn,
-    winningTile: winningTileType, doraTypes: doraTypesNow(p.ability === 'dorabaku' ? p : null),
-    uraDoraTypes: (opts.noRiichi ? null : uraTypesNow(p.ability === 'dorabaku' ? p : null)),
+    winningTile: winningTileType, doraTypes: doraTypesNow(hasAbility(p, 'dorabaku') ? p : null),
+    uraDoraTypes: (opts.noRiichi ? null : uraTypesNow(hasAbility(p, 'dorabaku') ? p : null)),
     redCount: redCountOf(p) + (opts.winningRed ? 1 : 0),
     settings: engineSettings(),
-    noDora: p.ability === 'hangaku',
-    jihaiDouble: (S.variant === 'roleplay' && p.ability === 'jihai-double') || S.variant === 'group' || S.variant === 'gdoubt',
+    noDora: hasAbility(p, 'hangaku'),
+    jihaiDouble: (S.variant === 'roleplay' && hasAbility(p, 'jihai-double')) || S.variant === 'group' || S.variant === 'gdoubt',
     winTileIs13Wait: !!opts.thirteenWait
   };
   var wildMode = 'max'; // オールマイティもペナルティ後に一番有利な評価を採る (2026-08-08 ユーザー指示)
@@ -1752,7 +1757,7 @@ function renderAll() {
   if (S.variant === 'chain' && p.fixed) flags += '<span>固定</span>';
   if (S.variant === 'chain' && G.chainOut && G.chainOut[pi]) flags += '<span>上がり済み</span>';
   if (S.variant === 'napoleon' && G.napoleon && pi === G.napoleon.pi) flags += '<span>ナポレオン ' + G.napoleon.bid + '点・' + napoleonTrumpName(G.napoleon.trump) + '</span>';
-    if (p.ability) { var ab = ABILITIES.find(function (a) { return a.id === p.ability; }); flags += '<span class="ability">特技:' + (ab ? ab.name : '') + '</span>'; }
+    if (p.abilities && p.abilities.length) { flags += '<span class="ability">特技:' + p.abilities.map(function (aid) { var ab = ABILITIES.find(function (a) { return a.id === aid; }); return ab ? ab.name : ''; }).join('・') + '</span>'; }
     var pond = p.discards.map(function (d) {
       return tileHTML(d.tile, { small: true, extra: ((d.riichi || d.stacked) ? 'riichi-d' : '') + (d.called ? ' called' : '') + (d.protected ? ' protected' : '') });
     }).join('');
@@ -2027,7 +2032,7 @@ async function doDraw(pi, rinshan) {
   p.tempFuriten = false;
   var tile = null;
   // ロールプレイ特技: 4枚ヅモ
-  if (S.variant === 'roleplay' && p.ability === 'fourdraw' && (p.abilityState.fourUsed || 0) < 2 && G.wall.length >= 4 && !rinshan) {
+  if (S.variant === 'roleplay' && hasAbility(p, 'fourdraw') && (p.abilityState.fourUsed || 0) < 2 && G.wall.length >= 4 && !rinshan) {
     var use = false;
     if (p.isHuman) {
       renderAll();
@@ -2291,7 +2296,7 @@ if (riichiIds.length &&!mode.riichi) buttons.push({ label: '立直して切る',
 if (riichiIds.length &&!mode.riichi && S.openRiichi) buttons.push({ label: 'オープン立直して切る', value: 'openriichi'});
 if (S.variant === 'chain' &&!p.riichi &&!p.fixed) buttons.push({ label: mode.fix? '固定モード: ON（切った後に固定）': '固定を宣言して切る', value: 'fix'});
 if (S.variant === 'survival' &&!p.declared) buttons.push({ label: mode.declare? 'テンパイ宣言: ON（切った後に宣言）': 'テンパイ宣言: OFF', value: 'declare'});
-if (S.variant === 'roleplay' && p.ability === 'ataranai' && (p.abilityState.ataranaiUsed || 0) < 2) {
+if (S.variant === 'roleplay' && hasAbility(p, 'ataranai') && (p.abilityState.ataranaiUsed || 0) < 2) {
 buttons.push({ label: mode.protect? '当たらない: ON': '特技「当たらない」を使って切る', value: 'protect'});
 }
 if (mode.riichi) buttons.push({ label: '立直をやめる', value: 'cancelmode', cls: 'sub'});
@@ -2371,7 +2376,7 @@ var tile = p.hand.find(function (t) { return t.id === picked.tileId;});
 if (!tile) continue;
 // ロールプレイ: 字牌を捨てる時に特技取得
 var granted = null;
-if (S.variant === 'roleplay' &&!p.ability && MJ.IS_HONOR(tile.t)) {
+if (S.variant === 'roleplay' && p.abilities.length < maxAbilities() && MJ.IS_HONOR(tile.t)) {
 granted = await pickAbility(pi, tile);
 }
 var result = { tileId: tile.id, riichi: mode.riichi, openRiichi: mode.open, protect: mode.protect, declareAfter: mode.declare, fix: mode.fix, grantedAbility: granted};
@@ -2387,7 +2392,7 @@ var idx = p.hand.findIndex(function (t) { return t.id === plan.tileId;});
 var tile = p.hand.splice(idx, 1)[0];
 sortHand(p);
 if (plan.grantedAbility) {
-p.ability = plan.grantedAbility;
+p.abilities.push(plan.grantedAbility);
 G.abilityPool[plan.grantedAbility] = pi;
 p.grantedOnDiscard = plan.grantedAbility;
 var ab = ABILITIES.find(function (a) { return a.id === plan.grantedAbility;});
@@ -2404,7 +2409,7 @@ log(p.name + (p.openRiichi? ' オープン立直！': (p.doubleRiichi? ' ダブ�
 }
 if (plan.fix && S.variant === 'chain' && !p.riichi && !p.fixed) { p.fixed = true; log(p.name + ' は「固定」を宣言した'); }
 if (isDoubtVariant() && plan.riichi) { p.riichiAtOwnTurn = p.ownTurns || 0; p.riichiStacks = 0; }
-if (plan.protect && p.ability === 'ataranai') {
+if (plan.protect && hasAbility(p, 'ataranai')) {
 p.abilityState.ataranaiUsed = (p.abilityState.ataranaiUsed || 0) + 1;
 log(p.name + ' は「当たらない」を宣言して切った（残り' + (2 - p.abilityState.ataranaiUsed) + '回）');
 }
@@ -2447,7 +2452,7 @@ return { tile: tile, drec: drec};
 async function pickAbility(pi, tile) {
 var free = ABILITIES.filter(function (a) { return G.abilityPool[a.id] === null || G.abilityPool[a.id] === undefined;});
 if (!free.length) return null;
-var html = '<h3>特技の取得</h3><p>' + MJ.TILE_NAMES[tile.t] + ' を捨てようとしています。字牌を捨てる時に特技を1つ取得できます（この局、先着順・1人1つ）。取得しないこともできます。</p><div class="ability-list">' +
+var html = '<h3>特技の取得</h3><p>' + MJ.TILE_NAMES[tile.t] + ' を捨てようとしています。字牌を捨てる時に特技を1つ取得できます（この局、先着順・1人' + maxAbilities() + 'つまで）。取得しないこともできます。</p><div class="ability-list">' +
 free.map(function (a) { return '<div><b>' + a.name + '</b> - ' + a.desc + '</div>';}).join('') + '</div>';
 var buttons = free.map(function (a) { return { label: a.name, value: a.id};});
 buttons.push({ label: '取得しない', value: null});
@@ -2556,7 +2561,7 @@ var take = false;
 if (cp.isHuman && noCallOn()) { humanPassedBoth = true; oomaiHumanPassed = true; }
 else if (cp.isHuman) {
 renderAll();
-var chiSeqsH = (!isSanma() && cl.pi === (pi + 1) % NP() && cl.kind !== 'oomai') ? chiOptions(cp, tile.t) : [];
+var chiSeqsH = (cl.kind !== 'oomai' && ((!isSanma() && cl.pi === (pi + 1) % NP()) || (isSanma() && S.variant === 'roleplay' && hasAbility(cp, 'dokochi')))) ? chiOptions(cp, tile.t) : [];
 var wildBtnsH = [];
 if (cl.pi === 0 || humanWildOpts.length || humanWildChiOpts.length) {
 humanWildOpts.forEach(function (o, oi4) { wildBtnsH.push({ label: (o.callKind === 'kan' ? 'カン' : 'ポン') + '（万能: ' + MJ.TILE_NAMES[tile.t] + '→' + MJ.TILE_NAMES[o.effType] + '）' + wildOptionLabel(o), value: 'wild' + oi4 }); });
@@ -2592,13 +2597,14 @@ return executeCall(cl.pi, pi, tile, cl.kind, null);
 }
 }
 // チー: 下家のみ (どこチー特技で誰でも可、近い順)
-var chiOrder = isSanma() ? [] : [1, 2, 3].map(function (o) { return (pi + o) % NP();}).filter(function (qi) {
+var chiOrder = (function () { var offs = []; for (var o = 1; o < NP(); o++) offs.push(o); return offs; })().map(function (o) { return (pi + o) % NP();}).filter(function (qi) {
 var q = G.players[qi];
 if (q.riichi) return false;
 if (S.variant === 'chain' && ((G.chainOut && G.chainOut[qi]) || q.fixed)) return false;
 if (S.variant === 'survival' && q.declared) return false;
+if (isSanma()) return S.variant === 'roleplay' && hasAbility(q, 'dokochi'); // サンマはチーなし。ただし特技「どこチー」を取ればどこからでもチーできる
 if (qi === (pi + 1) % NP()) return true;
-return S.variant === 'roleplay' && q.ability === 'dokochi';
+return S.variant === 'roleplay' && hasAbility(q, 'dokochi');
 });
 for (var chi = 0; chi < chiOrder.length; chi++) {
 var qpi = chiOrder[chi], qp = G.players[qpi];
@@ -3078,6 +3084,8 @@ async function playLoopFourdraw() {
 }
 
 
+function hasAbility(p, id) { return !!(p && p.abilities && p.abilities.indexOf(id) >= 0); }
+function maxAbilities() { return Number(S.roleplayAbilities || 1); }
 function isDoubtVariant() { return S.variant === 'doubt' || S.variant === 'gdoubt'; }
 // サンマ (3人麻雀) — bd要望 2026-11-21。段階導入: 第1弾は standard/allmighty/doubt のみ対応。
 var SANMA_NG = ['sashi', 'group', 'gdoubt', 'chain', 'napoleon']; // 2人用・パートナー制・軍勢払い前提 (bd決定)
@@ -6443,7 +6451,7 @@ if (S.variant !== 'roleplay') return -1;
 for (var qi = 0; qi < NP(); qi++) {
 if (qi === discarderPi) continue;
 var q = G.players[qi];
-if (q.ability === 'oomai' && tile.t === seatWindOf(qi)) return qi;
+if (hasAbility(q, 'oomai') && tile.t === seatWindOf(qi)) return qi;
 }
 return -1;
 }
@@ -6503,7 +6511,7 @@ if (drec && drec.tile.id === tile.id) { from.discards.pop(); drec.called = true;
 if (from.grantedOnDiscard) {
 log(from.name + ' の特技取得は、鳴かれたため取消になった');
 G.abilityPool[from.grantedOnDiscard] = null;
-from.ability = null; from.grantedOnDiscard = null;
+from.abilities = from.abilities.filter(function (a) { return a !== from.grantedOnDiscard; }); from.grantedOnDiscard = null;
 }
 from.grantedOnDiscard = null;
 G.anyCall = true;
@@ -6595,7 +6603,7 @@ if (drec && drec.tile.id === tile.id) { from.discards.pop(); drec.called = true;
 if (from.grantedOnDiscard) {
 log(from.name + ' の特技取得は、鳴かれたため取消になった');
 G.abilityPool[from.grantedOnDiscard] = null;
-from.ability = null; from.grantedOnDiscard = null;
+from.abilities = from.abilities.filter(function (a) { return a !== from.grantedOnDiscard; }); from.grantedOnDiscard = null;
 }
 from.grantedOnDiscard = null;
 G.anyCall = true;
@@ -6692,8 +6700,8 @@ function adjustPayment(payer, winner, amount) {
   // ロールプレイ特技による支払い修正 (amount は100点単位に丸め済みの前提)
   if (S.variant !== 'roleplay' || payer === winner) return amount;
   var a = amount;
-  if (payer.ability === 'oomai') a = a * 2;
-  if (payer.ability === 'hangaku') a = Math.ceil(a / 2 / 100) * 100;
+  if (hasAbility(payer, 'oomai')) a = a * 2;
+  if (hasAbility(payer, 'hangaku')) a = Math.ceil(a / 2 / 100) * 100;
   return a;
 }
 async function doWinTsumo(pi, ev, special) {
@@ -6717,7 +6725,7 @@ async function doWinTsumo(pi, ev, special) {
       if (qi === pi) return;
       var basePay = (pi === G.dealer || qi === G.dealer) ? (ev.score.dealerPay || ev.score.all) : ev.score.childPay;
       if (ev.score.all) basePay = ev.score.all;
-      if (q.ability === 'tsumorarenai') { log(q.name + ' は特技「ツモられない」で支払いなし'); return; }
+      if (hasAbility(q, 'tsumorarenai')) { log(q.name + ' は特技「ツモられない」で支払いなし'); return; }
       collected += basePay;
       var pay = adjustPayment(q, p, basePay + G.honba * 100);
       q.score -= pay; p.score += pay;
@@ -6992,8 +7000,8 @@ function cpuPlanDiscard(pi) {
   if (S.variant === 'survival' && !p.declared && minSh === 0) plan.declareAfter = Math.random() < 0.95;
   // ロールプレイ
   if (S.variant === 'roleplay') {
-    if (p.ability === 'ataranai' && (p.abilityState.ataranaiUsed || 0) < 2 && danger && Math.random() < 0.6) plan.protect = true;
-    if (!p.ability && MJ.IS_HONOR(chosen.tile.t) && Math.random() < 0.4) {
+    if (hasAbility(p, 'ataranai') && (p.abilityState.ataranaiUsed || 0) < 2 && danger && Math.random() < 0.6) plan.protect = true;
+    if (p.abilities.length < maxAbilities() && MJ.IS_HONOR(chosen.tile.t) && Math.random() < 0.4) {
       var free = ABILITIES.filter(function (a) { return G.abilityPool[a.id] === null || G.abilityPool[a.id] === undefined; });
       if (free.length) plan.grantedAbility = free[Math.floor(Math.random() * free.length)].id;
     }
@@ -7157,6 +7165,7 @@ function bindSettings() {
   $('set-doubtwilds').value = String(S.doubtWilds || 4); $('set-doubtwilds').addEventListener('change', function (e) { S.doubtWilds = Number(e.target.value); saveSettings(); });
   $('set-voicegender').value = S.voiceGender || 'auto'; $('set-voicegender').addEventListener('change', function (e) { S.voiceGender = e.target.value; saveSettings(); });
   $('set-doubtwildkind').value = S.doubtWildKind || 'five'; $('set-doubtwildkind').addEventListener('change', function (e) { S.doubtWildKind = e.target.value; saveSettings(); });
+  $('set-rpabilities').value = String(S.roleplayAbilities || 1); $('set-rpabilities').addEventListener('change', function (e) { S.roleplayAbilities = Number(e.target.value); saveSettings(); });
   updateVariantDesc();
 }
 function updateVariantDesc() { $('variant-desc').textContent = VARIANT_DESC[S.variant] || ''; }
