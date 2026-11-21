@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-21-99]</title>
+<title>変則麻雀 [build 2026-11-21-100]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -204,7 +204,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-21-99</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-21-100</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -267,6 +267,28 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
         </select></label>
       <label>ウマ
         <select id="set-uma">
+          <option value="10-30">10-30</option>
+          <option value="20-40">20-40</option>
+          <option value="5-10">5-10</option>
+          <option value="0-0">なし</option>
+        </select></label>
+      <label>サンマ開始点
+        <select id="set-sstart">
+          <option value="35000">35000</option>
+          <option value="30000">30000</option>
+          <option value="25000">25000</option>
+          <option value="40000">40000</option>
+        </select></label>
+      <label>サンマ返し点
+        <select id="set-sreturn">
+          <option value="40000">40000</option>
+          <option value="35000">35000</option>
+          <option value="30000">30000</option>
+          <option value="45000">45000</option>
+          <option value="50000">50000</option>
+        </select></label>
+      <label>サンマウマ
+        <select id="set-suma">
           <option value="10-30">10-30</option>
           <option value="20-40">20-40</option>
           <option value="5-10">5-10</option>
@@ -1194,7 +1216,7 @@ var VARIANT_DESC = {
   group: '対面と2対2のチーム戦。捨て牌の種類で次のツモ番が決まる（字牌=自分、萬子=下家、筒子=対面、索子=上家）。筒子のメンゼンメンツは+1翻（マル、ロンで完成した分は除く）、字牌の役は全て2倍。一発は誰かが鳴くまで続き、最終順位点込みのチーム合計で勝敗を決める。'
 };
 var DEFAULT_SETTINGS = {
-  variant: 'standard', playerCount: 4, length: 'hanchan', startScore: 25000, returnScore: 30000, uma: '10-30',
+  variant: 'standard', playerCount: 4, length: 'hanchan', startScore: 25000, returnScore: 30000, uma: '10-30', sanmaStartScore: 35000, sanmaReturnScore: 40000, sanmaUma: '10-30',
   aka: true, ura: true, kandora: true, ippatsu: true, kuitan: true, kiriage: true,
   pinfu30: false, kazoe: true, doubleYakuman: true, atamahane: true, tobi: true, nagashi: true,
   openRiichi: true, renho: 'off', daisharin: true, renkou: true, sound: true, voice: true, voiceGender: 'auto',
@@ -1937,25 +1959,25 @@ async function playLoop() {
     var pi = current, p = G.players[pi];
     if (S.variant === 'chain' && G.chainOut && G.chainOut[pi]) { current = chainNextActive(pi); continue; }
     G.current = pi; renderAll();
-    if (isDoubtVariant() && needsDraw) { await doubtTurnWindow(pi); if (G.loopToken !== token) return; }
+    if (isDoubtVariant() && needsDraw) { await doubtTurnWindow(pi); if (G.loopToken !== token || G.over) return; }
     if (needsDraw) {
       if (S.variant === 'survival' && p.declared) {
         log(p.name + ' はテンパイ宣言済み（ツモしない）');
         await sleep(300); current = (pi + 1) % NP(); needsDraw = true; continue;
       }
       var drawn = await doDraw(pi, rinshanDraw); rinshanDraw = false;
-      if (G.loopToken !== token) return;
+      if (G.loopToken !== token || G.over) return;
       if (!drawn) { await doRyukyoku(); return; }
       var res;
       if (S.variant === 'chain' && (p.riichi || p.fixed)) {
         var crt = await chainRiichiTurn(pi);
-        if (G.loopToken !== token) return;
+        if (G.loopToken !== token || G.over) return;
         if (crt === 'win') {
           if (G.chainContinued) { G.chainContinued = false; current = G.chainResumePi; needsDraw = true; rinshanDraw = false; continue; }
           return;
         }
         var outcomeC = await resolveDiscard(pi, crt);
-        if (G.loopToken !== token) return;
+        if (G.loopToken !== token || G.over) return;
         if (outcomeC.type === 'win') {
           if (G.chainContinued) { G.chainContinued = false; current = G.chainResumePi; needsDraw = true; continue; }
           return;
@@ -1964,7 +1986,7 @@ async function playLoop() {
         current = chainNextActive(pi); needsDraw = true; continue;
       }
       res = await afterDraw(pi);
-      if (G.loopToken !== token) return;
+      if (G.loopToken !== token || G.over) return;
       if (res === 'win') {
         if (S.variant === 'chain' && G.chainContinued) { G.chainContinued = false; current = G.chainResumePi; needsDraw = true; rinshanDraw = false; continue; }
         return;
@@ -1983,7 +2005,7 @@ async function playLoop() {
     if (S.variant === 'chain' && needsDraw) await chainExchange(pi);
     if (isDoubtVariant()) await doubtRiichiTurnActions(pi);
     var dInfo = await getDiscard(pi);
-    if (G.loopToken !== token) return;
+    if (G.loopToken !== token || G.over) return;
     if (S.variant === 'poverty' && dInfo && dInfo.tile) povertyAfterDiscard(pi, dInfo);
     if (S.variant === 'poverty' && G.justCalledPi === pi) G.justCalledPi = null;
     if (G.humanWin) { var hw = G.humanWin; G.humanWin = null; await doWinTsumo(hw.pi, hw.ev); if (S.variant === 'chain' && G.chainContinued) { G.chainContinued = false; current = G.chainResumePi; needsDraw = true; continue; } return; }
@@ -1991,7 +2013,7 @@ async function playLoop() {
     if (G.humanKan) { G.humanKan = false; needsDraw = true; rinshanDraw = true; current = pi; continue; }
     if (G.specialWin) { var sw = G.specialWin; G.specialWin = null; await doWinTsumo(sw.pi, sw.ev, true); return; }
     var outcome = await resolveDiscard(pi, dInfo);
-    if (G.loopToken !== token) return;
+    if (G.loopToken !== token || G.over) return;
     if (outcome.type === 'win') {
       if (S.variant === 'chain' && G.chainContinued) { G.chainContinued = false; current = G.chainResumePi; needsDraw = true; continue; }
       return;
@@ -3063,8 +3085,8 @@ var SANMA_TODO = ['survival', 'roleplay', 'fiftyone', 'exchange', 'fourdraw', 'p
 function isSanma() { return Number(S.playerCount || 4) === 3; }
 function NP() { return G ? G.players.length : (isSanma() ? 3 : 4); }
 function sanmaAllows(v) { return !isSanma() || (SANMA_NG.indexOf(v) < 0 && SANMA_TODO.indexOf(v) < 0); }
-function startScoreNow() { return isSanma() ? 35000 : Number(S.startScore); }
-function returnScoreNow() { return isSanma() ? 40000 : Number(S.returnScore); }
+function startScoreNow() { return isSanma() ? Number(S.sanmaStartScore) : Number(S.startScore); }
+function returnScoreNow() { return isSanma() ? Number(S.sanmaReturnScore) : Number(S.returnScore); }
 function kitaInHand(p) { return p.hand.filter(function (t) { return t.t === 30; }).length; }
 function canKita(p) { return isSanma() && kitaInHand(p) > 0 && (!p.riichi || kitaInHand(p) === 1); }
 /* ================= ダウト麻雀 =================
@@ -4670,12 +4692,12 @@ async function playLoopNarabe() {
     if (needsDraw) {
       p.tempFuriten = false;
       var drawn = await doDraw(pi, rinshanDraw);
-      if (G.loopToken !== token) return;
+      if (G.loopToken !== token || G.over) return;
       if (!drawn) { await doRyukyoku(); return; }
       needsDraw = false; rinshanDraw = false;
     }
     var res = await afterDraw(pi);
-    if (G.loopToken !== token) return;
+    if (G.loopToken !== token || G.over) return;
     if (res === 'win') return;
     if (res === 'kan') { needsDraw = true; rinshanDraw = true; continue; }
     var act = null, dInfo = null;
@@ -4685,24 +4707,24 @@ async function playLoopNarabe() {
       narabeInstallHook(pi);
       dInfo = await getDiscard(pi);
       narabeUninstallHook();
-      if (G.loopToken !== token) return;
+      if (G.loopToken !== token || G.over) return;
       act = G.narabeAction ? G.narabeAction : { kind: 'discard' };
       G.narabeAction = null;
     } else {
       act = await narabeChooseAction(pi);
     }
-    if (G.loopToken !== token) return;
+    if (G.loopToken !== token || G.over) return;
     if (act.kind !== 'discard') {
       G.postDraw = null;
       var pres = act.kind === 'jokerDiscard' ? await narabeJokerDiscard(pi, act.tile) : await narabeDoPlace(pi, act);
-      if (G.loopToken !== token) return;
+      if (G.loopToken !== token || G.over) return;
       if (pres === 'win') return;
       if (pres && pres.callPlayer !== undefined) { current = pres.callPlayer; needsDraw = pres.needsDraw; rinshanDraw = !!pres.rinshan; forceDiscard = true; continue; }
       current = (pi + 1) % NP(); needsDraw = true; continue;
     }
     if (!dInfo) {
       dInfo = await getDiscard(pi);
-      if (G.loopToken !== token) return;
+      if (G.loopToken !== token || G.over) return;
     }
     if (G.humanWin) { var hw = G.humanWin; G.humanWin = null; await doWinTsumo(hw.pi, hw.ev); return; }
     if (G.humanWinDone) { G.humanWinDone = false; return; }
@@ -4714,7 +4736,7 @@ async function playLoopNarabe() {
       current = (pi + 1) % NP(); needsDraw = true; continue;
     }
     var outcome = await resolveDiscard(pi, dInfo);
-    if (G.loopToken !== token) return;
+    if (G.loopToken !== token || G.over) return;
     if (outcome.type === 'win') return;
     if (outcome.type === 'call') { current = outcome.player; needsDraw = outcome.needsDraw; rinshanDraw = !!outcome.rinshan; continue; }
     await narabeCheckObligation(pi);
@@ -6850,7 +6872,8 @@ function endMatch(reason) {
       var ret = returnScoreNow();
       var v = (e.p.score - ret) / 1000 + (rank === 0 ? oka + (umaParts[0] || 0) : rank === 1 ? (umaParts[1] ? umaParts[0] - 0 : 0) : 0);
       // ウマは 1位:+uma2, 2位:+uma1, 3位:-uma1, 4位:-uma2 （表記 '10-30' は 2位+10,1位+30 の意味）
-      var umaVal = isSanma() ? [umaParts[1] || 0, 0, -(umaParts[1] || 0)][rank] : [umaParts[1] || 0, umaParts[0] || 0, -(umaParts[0] || 0), -(umaParts[1] || 0)][rank];
+      var sanmaUmaParts = (S.sanmaUma || '10-30').split('-').map(Number);
+      var umaVal = isSanma() ? [sanmaUmaParts[1] || 0, 0, -(sanmaUmaParts[1] || 0)][rank] : [umaParts[1] || 0, umaParts[0] || 0, -(umaParts[0] || 0), -(umaParts[1] || 0)][rank];
       v = (e.p.score - ret) / 1000 + umaVal + (rank === 0 ? oka : 0);
       pts = (v >= 0 ? '+' : '') + v.toFixed(1);
     }
@@ -7122,6 +7145,9 @@ function bindSettings() {
   $('set-start').value = String(S.startScore); $('set-start').addEventListener('change', function (e) { S.startScore = Number(e.target.value); saveSettings(); });
   $('set-return').value = String(S.returnScore); $('set-return').addEventListener('change', function (e) { S.returnScore = Number(e.target.value); saveSettings(); });
   $('set-uma').value = S.uma; $('set-uma').addEventListener('change', function (e) { S.uma = e.target.value; saveSettings(); });
+  $('set-sstart').value = String(S.sanmaStartScore); $('set-sstart').addEventListener('change', function (e) { S.sanmaStartScore = Number(e.target.value); saveSettings(); });
+  $('set-sreturn').value = String(S.sanmaReturnScore); $('set-sreturn').addEventListener('change', function (e) { S.sanmaReturnScore = Number(e.target.value); saveSettings(); });
+  $('set-suma').value = S.sanmaUma; $('set-suma').addEventListener('change', function (e) { S.sanmaUma = e.target.value; saveSettings(); });
   $('set-renho').value = S.renho; $('set-renho').addEventListener('change', function (e) { S.renho = e.target.value; saveSettings(); });
   $('set-doubtwilds').value = String(S.doubtWilds || 4); $('set-doubtwilds').addEventListener('change', function (e) { S.doubtWilds = Number(e.target.value); saveSettings(); });
   $('set-voicegender').value = S.voiceGender || 'auto'; $('set-voicegender').addEventListener('change', function (e) { S.voiceGender = e.target.value; saveSettings(); });
