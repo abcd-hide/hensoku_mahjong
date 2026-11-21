@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-19-96]</title>
+<title>変則麻雀 [build 2026-11-21-97]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -204,7 +204,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-19-96</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-21-97</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -2093,8 +2093,13 @@ async function afterDraw(pi) {
     if (robbed2) return 'win';
     return 'kan';
   }
-  if (isDoubtVariant() && playerShanten(p) <= 1 && Math.random() < 0.5) {
-    // ダウト: 伏せポンへの嘘加槓 (狙いがある手だけ、本物加槓と同じ頻度感で)
+  // ダウト: 嘘加槓は狙いがある時だけ (bd決定 2026-11-21 A案)。監査で「ウーソー0個・
+  // テンパイ中でも無差別にやっている」ことが分かったため、ボーナスへ向かっている
+  // (既存ウーソー1つ以上) 場合のみに絞る。テンパイ中はボーナスまであと1つ (2つ以上) の時だけ。
+  var dkUso = isDoubtVariant() ? doubtUsoCount(p) : 0;
+  var dkSh = isDoubtVariant() ? playerShanten(p) : 9;
+  var dkOk = isDoubtVariant() && dkUso >= 1 && dkSh <= 1 && (dkSh === 1 || dkUso >= 2);
+  if (dkOk && Math.random() < 0.35) {
     var dkOpts = doubtKakanOptions(pi);
     if (dkOpts.length) {
       var dk = dkOpts[0];
