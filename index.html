@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-21-109]</title>
+<title>変則麻雀 [build 2026-11-21-110]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -204,7 +204,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-21-109</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-21-110</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -634,8 +634,10 @@ function evalDecomp(allSets, pair, counts, meldsCount, ctx, special) {
     add('人和', 5); // 満貫扱い: finishYaku 側では通常翻として加算されるため下で満貫化しないよう注意 (han=5で満貫になる)
   }
   /* 通常役 */
-  if (ctx.riichi) add(ctx.doubleRiichi ? 'ダブル立直' : '立直', ctx.doubleRiichi ? 2 : 1);
-  if (ctx.openRiichi && S.openRiichi) add('オープン立直', 1);
+  if (ctx.riichi) {
+    if (ctx.openRiichi && S.openRiichi) add('オープン立直', ctx.doubleRiichi ? 3 : 2);
+    else add(ctx.doubleRiichi ? 'ダブル立直' : '立直', ctx.doubleRiichi ? 2 : 1);
+  }
   if (ctx.ippatsu && S.ippatsu !== false) add('一発', 1);
   if (ctx.tsumo && menzen) add('門前清自摸和', 1);
   if (ctx.haitei && ctx.tsumo) add('海底摸月', 1);
@@ -806,8 +808,10 @@ function doraCountFor(counts, melds, ctx) {
 }
 function ctxYakuList(ctx) {
   var y = [], S = ctx.settings || {};
-  if (ctx.riichi) y.push({ name: ctx.doubleRiichi ? 'ダブル立直' : '立直', han: ctx.doubleRiichi ? 2 : 1, yakuman: 0 });
-  if (ctx.openRiichi && S.openRiichi) y.push({ name: 'オープン立直', han: 1, yakuman: 0 });
+  if (ctx.riichi) {
+    if (ctx.openRiichi && S.openRiichi) y.push({ name: 'オープン立直', han: ctx.doubleRiichi ? 3 : 2, yakuman: 0 });
+    else y.push({ name: ctx.doubleRiichi ? 'ダブル立直' : '立直', han: ctx.doubleRiichi ? 2 : 1, yakuman: 0 });
+  }
   if (ctx.ippatsu && S.ippatsu !== false) y.push({ name: '一発', han: 1, yakuman: 0 });
   if (ctx.tsumo && ctx.menzen) y.push({ name: '門前清自摸和', han: 1, yakuman: 0 });
   if (ctx.haitei && ctx.tsumo) y.push({ name: '海底摸月', han: 1, yakuman: 0 });
@@ -1380,7 +1384,13 @@ function startMatch() {
 function roundWindOf() { return 27 + Math.floor(G.handNo / NP()) % 2; } // 東場/南場のみ
 function roundName() {
   var winds = ['東', '南'];
-  return winds[Math.floor(G.handNo / NP()) % 2] + (G.handNo % NP() + 1) + '局';
+  var hn = G.handNo;
+  // 試合終了後は最終局の表示のままにする (内部では handNo が進んでいるため、そのまま表示すると次の局に見える)
+  if (S.variant !== 'survival') {
+    var total = S.length === 'single' ? 1 : (S.length === 'tonpuu' ? NP() : 2 * NP());
+    if (hn >= total) hn = total - 1;
+  }
+  return winds[Math.floor(hn / NP()) % 2] + (hn % NP() + 1) + '局';
 }
 function matchEndedByLength() {
   if (S.variant === 'survival') return false; // ドボンまで
@@ -2297,7 +2307,9 @@ if (p.riichi && G.lastDrawn && !(pd && (pd.ev || pd.kans.length)) && !(isDoubtVa
   // 立直中: ツモ/カンの可否は afterDraw で処理済み。ここに来た=切るしかないので自動ツモ切り
   await sleep(650);
   if (S.variant === 'doubt') await doubtMaybeStack(pi);
-  return applyDiscardChoice(pi, { tileId: G.lastDrawn.id });
+  var grantedAuto = null;
+  if (S.variant === 'roleplay' && p.abilities.length < maxAbilities() && MJ.IS_HONOR(G.lastDrawn.t)) grantedAuto = await pickAbility(pi, G.lastDrawn);
+  return applyDiscardChoice(pi, { tileId: G.lastDrawn.id, grantedAbility: grantedAuto });
 }
 if (pd && pd.foul) log('オールマイティ単騎のため、この形では上がれない（反則）');
 var riichiIds = (!p.riichi && p.menzen && S.variant !== 'survival' && p.score >= 1000)? riichiDiscardOptions(pi): [];
@@ -2515,7 +2527,13 @@ winners.push({ pi: qi, ev: ev});
 if (S.atamahane) break;
 }
 } else {
-log('「当たらない」宣言の牌にはロンできない');
+  // 「当たらない」の牌: 人間が上がれた牌なら、その旨を明示する (無言/一般論だけだと不具合に見える)
+  var hq = G.players.find(function (q) { return q.isHuman; });
+  if (hq && G.players.indexOf(hq) !== pi && !isFuriten(hq) && evalWin(hq, tile.t, { tsumo: false, houtei: houtei, winningRed: tile.red && !tile.wild })) {
+    log('あなた: ' + discarder.name + ' の ' + MJ.TILE_NAMES[tile.t] + ' は特技「当たらない」でロンできません');
+  } else {
+    log('「当たらない」宣言の牌にはロンできない');
+  }
 }
 if (winners.length >= 3) { log('トリプルロンのため流局'); G.skipNagashiOnce = true; await doRyukyoku(); return { type: 'win'};}
 if (winners.length) { await doWinRon(winners, pi, tile); return { type: 'win'};}
@@ -3034,6 +3052,17 @@ async function playLoopExchange() {
    4枚のドラフトを回し、全員が1枚ずつ取ったら同時に捨てる。取った牌で上がれる場合は河に出してツモ宣言。
    ロン/鳴きは捨て牌フェーズの共通処理（同時上がり・何回でも鳴き可）。
    リーチ後のロンは原典では「0発」2翻だが、筆者方式の一発扱いを採用する。 */
+function riichiDraftKeep(p) {
+  // リーチ中のドラフトは自動で取るが、残りの中に当たり牌があればそれを取る (ツモ宣言できるように)
+  for (var i = 0; i < G.draftBatch.length; i++) {
+    var cand = G.draftBatch[i];
+    p.hand.push(cand);
+    var ev = evalWin(p, cand.t, { tsumo: true });
+    p.hand.pop();
+    if (ev) return cand;
+  }
+  return G.draftBatch[0];
+}
 async function roundFourdraw() {
   var batch = [];
   var n = Math.min(NP(), G.wall.length); // ドラフトは全員1枚ずつ (サンマは3枚)
@@ -3046,7 +3075,7 @@ async function roundFourdraw() {
     G.current = pi;
     if (!G.draftBatch.length) break;
     var kept = null;
-    if (p.riichi) kept = G.draftBatch[0];
+    if (p.riichi) kept = riichiDraftKeep(p);
     else if (p.isHuman) {
       log('ドラフト: 欲しい牌を1枚選んでください');
       var pick = await waitCenterOrButton51([]);
@@ -4844,7 +4873,7 @@ async function bridgeDraft(starter) {
     p.tempFuriten = false;
     G.current = pi; renderAll();
     var kept = null;
-    if (p.riichi) kept = G.draftBatch[0];
+    if (p.riichi) kept = riichiDraftKeep(p);
     else if (p.isHuman) {
       log('ドラフト: 欲しい牌を1枚選んでください');
       var pick = await waitCenterOrButton51([]);
@@ -5893,14 +5922,6 @@ function cpuWorstTile(p) {
   });
   return worst;
 }
-function riichiKanOk51(pi, k) {
-  // 51のリーチ中はツモ牌が手牌に無いので、基準の待ちは「今の手牌の待ち」で判定する
-  var saved = G.lastDrawn;
-  G.lastDrawn = null;
-  var ok = riichiKanOk(pi, k);
-  G.lastDrawn = saved;
-  return ok;
-}
 async function riichiTurn51(pi) {
   var p = G.players[pi];
   while (true) {
@@ -5932,7 +5953,9 @@ async function riichiTurn51(pi) {
       }
     }
     // リーチ後のカン (手牌にある牌だけ・待ちが変わらないものだけ)。嶺上ツモがなければ嶺上牌をツモ切りする
-    var kans51 = G.deadWall.length ? kanOptions(pi).filter(function (k) { return riichiKanOk51(pi, k); }) : [];
+    // 51のリーチは手牌が固定でツモがないため、通常の「待ち不変」条件ではカンが成立しない。
+    // 51ではリーチ後もカンできるものとする (カン後の手は自己責任)
+    var kans51 = G.deadWall.length ? kanOptions(pi) : [];
     if (kans51.length) {
       var doKan51 = false;
       if (p.isHuman) {
@@ -7034,7 +7057,13 @@ function cpuPlanDiscard(pi) {
   if (p.riichi) {
     var drawn = G.lastDrawn;
     if (drawn && p.hand.some(function (t) { return t.id === drawn.id; })) {
-      return { tileId: drawn.id, riichi: false, protect: false, declareAfter: false, grantedAbility: null };
+      var planR = { tileId: drawn.id, riichi: false, protect: false, declareAfter: false, grantedAbility: null };
+      // ロールプレイ: リーチ中のツモ切りでも字牌なら特技を取得できる
+      if (S.variant === 'roleplay' && p.abilities.length < maxAbilities() && MJ.IS_HONOR(drawn.t) && Math.random() < 0.4) {
+        var freeR = ABILITIES.filter(function (a) { return G.abilityPool[a.id] === null || G.abilityPool[a.id] === undefined; });
+        if (freeR.length) planR.grantedAbility = freeR[Math.floor(Math.random() * freeR.length)].id;
+      }
+      return planR;
     }
     // lastDrawn が無い/手牌に無い場合は通常の捨て計画にフォールバックする (build67)
   }
