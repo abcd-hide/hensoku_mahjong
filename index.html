@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-21-98]</title>
+<title>変則麻雀 [build 2026-11-21-99]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -204,7 +204,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-21-98</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-21-99</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -1766,7 +1766,7 @@ function renderAll() {
     var wrapCls = 'tile-wrap';
     if (G.pendingDiscard && G.pendingDiscard.restrict && G.pendingDiscard.restrict.indexOf(t.id) < 0) wrapCls += ' disabled';
     if (G.drawnTileId === t.id) wrapCls += ' last-drawn drawn-sep';
-    if (G.discardWait && idx === keySelIndex(hp)) wrapCls += ' key-selected';
+    if ((G.discardWait || G.tileKeyWait) && idx === keySelIndex(hp)) wrapCls += ' key-selected';
     if (G.narabeSelected && G.narabeSelected.indexOf(t.id) >= 0) wrapCls += ' selected';
     if (G.narabeHintIds && G.narabeHintIds.indexOf(t.id) >= 0) wrapCls += ' placeable';
     if (S.variant === 'narabe' && hp.openTileIds && hp.openTileIds.indexOf(t.id) >= 0) wrapCls += ' opened';
@@ -1806,7 +1806,7 @@ function renderActions() {
   pend.buttons.forEach(function (b, i) {
     var btn = document.createElement('button');
     var sp = document.createElement('span'); sp.className = 'kbd-hint';
-    sp.textContent = G.pickWait ? (b.value === 'ok' ? 'Enter' : b.value === 'cancel' ? 'Esc' : '') : (G.discardWait ? ('ASDFGHJKL'.charAt(i) || '') : String(i + 1));
+    sp.textContent = G.pickWait ? (b.value === 'ok' ? 'Enter' : b.value === 'cancel' ? 'Esc' : '') : ((G.discardWait || G.tileKeyWait) ? ('ASDFGHJKL'.charAt(i) || '') : String(i + 1));
     if (sp.textContent) btn.appendChild(sp);
     btn.appendChild(document.createTextNode(b.label));
     if (b.cls) btn.className = b.cls;
@@ -1815,7 +1815,7 @@ function renderActions() {
   });
   if (pend !== lastActionPend) {
     lastActionPend = pend;
-    if (!G.discardWait && bar.querySelector('button')) (passButtonOf(bar.querySelectorAll('button')) || bar.querySelector('button')).focus();
+    if (!G.discardWait && !G.tileKeyWait && bar.querySelector('button')) (passButtonOf(bar.querySelectorAll('button')) || bar.querySelector('button')).focus();
   }
 }
 /* 汎用「人間の選択待ち」 */
@@ -1873,7 +1873,7 @@ function choiceButtonsNow() {
     var mb = modal.querySelectorAll('#modal-box button');
     if (mb.length) return Array.prototype.slice.call(mb);
   }
-  if (typeof G !== 'undefined' && G && G.pending && !G.discardWait) {
+  if (typeof G !== 'undefined' && G && G.pending && !G.discardWait && !G.tileKeyWait) {
     var bar = $('action-bar');
     var ab = bar ? bar.querySelectorAll('button') : [];
     if (ab.length) return Array.prototype.slice.call(ab);
@@ -4314,9 +4314,10 @@ function narabeExchangePickTile() {
   return new Promise(function (resolve) {
     log('交換する手牌を1枚選んでください（交換しない場合はボタン）');
     renderAll();
-    G.exchangePut = { resolve: function (tileId) { G.exchangePut = null; G.pending = null; renderActions(); resolve(tileId); } };
+    G.tileKeyWait = true; // 牌キーが優先 (数字=牌、ボタンは文字キー) (bd指摘 2026-11-21)
+    G.exchangePut = { resolve: function (tileId) { G.exchangePut = null; G.tileKeyWait = false; G.pending = null; renderActions(); resolve(tileId); } };
     var prevPending = G.pending;
-    G.pending = { buttons: [{ label: '交換しない', value: 'no', cls: 'sub' }], resolve: function () { G.pending = prevPending; G.exchangePut = null; renderActions(); resolve(null); } };
+    G.pending = { buttons: [{ label: '交換しない', value: 'no', cls: 'sub' }], resolve: function () { G.pending = prevPending; G.exchangePut = null; G.tileKeyWait = false; renderActions(); resolve(null); } };
     renderActions();
   });
 }
@@ -5781,9 +5782,10 @@ function waitCenterOrButton51(buttons) {
 function waitPutOrButton51(buttons) {
   return new Promise(function (resolve) {
     var prev = G.pending;
-    G.exchangePut = { resolve: function (tileId) { G.exchangePut = null; if (G.pending && G.pending._c51) G.pending = prev; resolve({ tileId: tileId }); } };
+    G.tileKeyWait = true; // 牌キーが優先 (数字=牌、ボタンは文字キー) (bd指摘 2026-11-21)
+    G.exchangePut = { resolve: function (tileId) { G.exchangePut = null; G.tileKeyWait = false; if (G.pending && G.pending._c51) G.pending = prev; resolve({ tileId: tileId }); } };
     if (buttons.length) {
-      G.pending = { _c51: true, buttons: buttons, resolve: function (v) { G.exchangePut = null; G.pending = prev; resolve({ button: v }); } };
+      G.pending = { _c51: true, buttons: buttons, resolve: function (v) { G.exchangePut = null; G.tileKeyWait = false; G.pending = prev; resolve({ button: v }); } };
     }
     renderAll();
   });
@@ -7207,14 +7209,14 @@ document.addEventListener('keydown', function (e) {
   if (e.key === 'Enter') {
     var modal = $('modal'), nb = $('btn-next-hand');
     if (modal && nb && !modal.classList.contains('hidden')) { nb.click(); return; }
-    if (G && G.discardWait && G.current === 0) {
+    if (G && (G.discardWait || G.tileKeyWait) && (G.current === 0 || G.exchangePut)) {
       var st = G.players[0].hand[keySelIndex(G.players[0])];
       if (st) onHumanTileClick(st.id);
     }
     return;
   }
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-    if (!G || !G.discardWait || G.current !== 0) return;
+    if (!G || !(G.discardWait || G.tileKeyWait) || G.current !== 0) return;
     e.preventDefault();
     var p0 = G.players[0];
     var nx = keySelIndex(p0) + (e.key === 'ArrowRight' ? 1 : -1);
@@ -7223,7 +7225,7 @@ document.addEventListener('keydown', function (e) {
     renderAll();
     return;
   }
-  if (!G || !G.discardWait || G.current !== 0) return;
+  if (!G || !(G.discardWait || G.tileKeyWait) || (G.current !== 0 && !G.exchangePut)) return;
   if (G.pending && !G.pickWait) {
     var li = 'asdfghjkl'.indexOf(String(e.key).toLowerCase());
     if (li >= 0) {
