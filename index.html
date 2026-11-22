@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-22-115]</title>
+<title>変則麻雀 [build 2026-11-22-116]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -218,7 +218,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-22-115</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-22-116</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -380,7 +380,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
   <div id="net-table-view" class="hidden">
     <h3 id="net-table-title">卓</h3>
     <div id="net-members"></div>
-    <p><button id="net-start">対戦開始</button> <button id="net-back" class="sub" style="display:none">待合室に戻る（再戦）</button> <button id="net-leave" class="sub">卓を出る</button></p>
+    <p><button id="net-start">対戦開始</button> <button id="net-shuffle" class="sub" style="display:none">席順をランダムに並べ替え</button> <button id="net-back" class="sub" style="display:none">待合室に戻る（再戦）</button> <button id="net-leave" class="sub">卓を出る</button></p>
     <h3>卓チャット</h3>
     <div id="net-table-chat" class="net-chat"></div>
     <input type="text" id="net-table-chat-input" maxlength="200"><button id="net-table-chat-send">送信</button>
@@ -1416,10 +1416,18 @@ function startMatch() {
   $('settings-panel').classList.add('hidden');
   document.body.classList.toggle('variant-sashi', S.variant === 'sashi');
   var startScore = S.variant === 'survival' ? 10000 : startScoreNow();
+  // ネット対戦ホストが NET.dealerBase を置いた場合だけ開始親をずらす (開始親ランダム)。
+  // ローカル対戦では常に 0 で従来通り。親進行は (handNo + dealerBase) % 人数 で統一する
+  var dealerBase0 = 0;
+  if (typeof NET !== 'undefined' && NET && NET.mode === 'host' && NET.dealerBase != null) {
+    var npAll = isSanma() ? 3 : 4;
+    dealerBase0 = ((NET.dealerBase % npAll) + npAll) % npAll;
+    NET.dealerBase = null;
+  }
   var mkPlayers = [newPlayer('あなた', true)];
   for (var npi = 1; npi < (isSanma() ? 3 : 4); npi++) mkPlayers.push(newPlayer('CPU ' + npi, false));
   G = { players: mkPlayers,
-    dealer: 0, roundNum: 0, honba: 0, kyotaku: 0, handNo: 0, over: false, abilityPool: {}, nextPoverty: { kind: 'none' } };
+    dealer: dealerBase0, dealerBase: dealerBase0, roundNum: 0, honba: 0, kyotaku: 0, handNo: 0, over: false, abilityPool: {}, nextPoverty: { kind: 'none' } };
   G.players.forEach(function (p) { p.score = startScore; });
   G.handNo = 0;
   nextHand(true);
@@ -3662,7 +3670,8 @@ function onDoubtButton(ownerPi, meldIdx) {
     // ゲストのダウトボタン: 盤面は回転済み表示なので、オーナー席をホスト座標に戻して
     // 制御チャットでホストへ依頼する (中継が転送する通常チャットに制御接頭辞を付ける)
     if (!G || G.over) return;
-    var hostOwner = (NET.seat + ownerPi) % NP();
+    // 回転量は中継席ではなく自分のゲーム席 (スナップショットはゲーム席で回転されている)
+    var hostOwner = ((NET.gameSeat != null ? NET.gameSeat : NET.seat) + ownerPi) % NP();
     netSendTable({ t: 'chat', text: '\u0001D:' + hostOwner + ':' + meldIdx });
     return;
   }
@@ -7191,7 +7200,7 @@ async function finishHand(result) {
   await netAwaitResultNext($('modal-box').innerHTML);
   if (checkMatchEndByScore()) return;
   if (dealerWon) { G.honba++; log('親の連荘'); }
-  else { G.honba = 0; G.handNo++; G.dealer = G.handNo % NP(); }
+  else { G.honba = 0; G.handNo++; G.dealer = (G.handNo + (G.dealerBase || 0)) % NP(); }
   nextHand(false);
 }
 function checkMatchEndByScore() {
@@ -7249,7 +7258,7 @@ async function doRyukyoku() {
   await netAwaitResultNext($('modal-box').innerHTML);
   if (checkMatchEndByScore()) return;
   G.honba++;
-  if (!tenpai[G.dealer]) { G.handNo++; G.dealer = G.handNo % NP(); }
+  if (!tenpai[G.dealer]) { G.handNo++; G.dealer = (G.handNo + (G.dealerBase || 0)) % NP(); }
   nextHand(false);
 }
 async function ryukyokuSurvival() {
@@ -7275,7 +7284,7 @@ async function ryukyokuSurvival() {
   showModal(html + '<div class="modal-btns"><button id="btn-next-hand">次へ</button></div>');
   await new Promise(function (resolve) { $('btn-next-hand').addEventListener('click', function () { hideModal(); resolve(); }); });
   if (checkMatchEndByScore()) return;
-  G.handNo++; G.dealer = G.handNo % NP(); G.honba = 0;
+  G.handNo++; G.dealer = (G.handNo + (G.dealerBase || 0)) % NP(); G.honba = 0;
   nextHand(false);
 }
 /* ネット対戦のホストには、結果画面に「待合室に戻る」ボタンを出す (再戦用) */
@@ -7759,8 +7768,13 @@ try { NET_RELAY_URL = localStorage.getItem('hensokuRelayUrl') || NET_RELAY_URL; 
 var NET = {
   mode: 'off', name: '', token: '', seat: null, tableId: null, tableSeats: 4,
   lobbyWs: null, tableWs: null, tables: [],
-  seats: {},          // host側: seat -> 'local' | 'remote' | 'cpu'
-  guests: {},         // host側: seat -> {name, connected}
+  seats: {},          // host側: 中継席 -> 'local' | 'remote' | 'cpu'
+  guests: {},         // host側: 中継席 -> {name, connected}
+  seatOrder: null,    // host側: ゲーム席 -> 中継席 (0番は常に0、CPU席は null)。席順はこれで決まる
+  seatManual: false,  // host側: 席順を手動調整したら true (メンバー変動でも再シャッフルしない)
+  dealerBase: null,   // host側: 次の startMatch の開始親オフセット (netHostStart が設定し startMatch が消費)
+  gameSeat: null,     // guest側: 自分のゲーム席 (ロスター/スナップショットで知る)
+  rosterYou: null,    // guest側: ロスター上の自分のゲーム席
   promptSeat: null,   // 次の waitHuman/modalChoice の対象席 (呼び出し側が直前にセット)
   promptSeq: 1,
   pendingPrompts: {}, // host側: id -> {seat, resolve, defaultFn, tag}
@@ -7785,8 +7799,11 @@ function netRefreshSeatsView() {
   var arr = [];
   for (var i = 0; i < G.players.length; i++) {
     if (i === 0) arr.push({ name: NET.name || G.players[0].name, remote: false, connected: true });
-    else if (NET.guests[i] && NET.guests[i].name) arr.push({ name: NET.guests[i].name, remote: true, connected: !!NET.guests[i].connected });
-    else arr.push({ name: G.players[i].name, remote: false, connected: true });
+    else {
+      var r = netGameToRelay(i);
+      if (r != null && NET.guests[r] && NET.guests[r].name) arr.push({ name: NET.guests[r].name, remote: true, connected: !!NET.guests[r].connected });
+      else arr.push({ name: G.players[i].name, remote: false, connected: true });
+    }
   }
   G.netSeats = arr;
 }
@@ -7809,8 +7826,92 @@ function netGuestSocketDown() {
     if (!NET.tableWs) netConnectTable(NET.tableId, null);
   }, 3000);
 }
+/* ---------- 席マッピング (ホスト側) ----------
+   bd指示 2026-11-22: 席順は接続順ではなく、既定でランダム (手動調整も可)。
+   中継席 (接続順のスロット) とゲーム席 (プレイヤー番号) は別物として扱い、
+   NET.seatOrder[ゲーム席] = 中継席 で相互変換する。ホストは常にゲーム席0 =
+   中継席0。NET.guests / NET.seats は中継席キー、ゲーム側の関数はゲーム席で
+   動き、変換はこの層と送信境界 (netPromptRaw / netSendSnapshots 等) で行う。 */
+function netEnsureSeatOrder() {
+  var n = NET.tableSeats || 4;
+  if (NET.seatOrder && NET.seatOrder.length === n) return;
+  NET.seatOrder = [];
+  for (var g = 0; g < n; g++) NET.seatOrder.push(null);
+  NET.seatOrder[0] = 0;
+  // 既にいるゲストは接続順に仮置きする (直後のメンバー変動処理で整えられる)
+  var gs = 1;
+  netMemberRelaySeats().forEach(function (r) { if (gs < n) NET.seatOrder[gs++] = r; });
+}
+function netMemberRelaySeats() {
+  return Object.keys(NET.guests).map(Number).filter(function (r) {
+    return r > 0 && NET.guests[r] && NET.guests[r].name;
+  }).sort(function (a, b) { return a - b; });
+}
+function netGameToRelay(g) {
+  if (g === 0) return 0;
+  netEnsureSeatOrder();
+  var r = NET.seatOrder[g];
+  return (r == null) ? null : r;
+}
+function netRelayToGame(r) {
+  if (r === 0) return 0;
+  netEnsureSeatOrder();
+  for (var g = 1; g < NET.seatOrder.length; g++) if (NET.seatOrder[g] === r) return g;
+  return -1;
+}
+/* メンバー (切断中=予約席を含む) をゲーム席1..へランダムに配置し直す */
+function netShuffleSeats() {
+  netEnsureSeatOrder();
+  var n = NET.tableSeats || 4;
+  var members = netMemberRelaySeats();
+  shuffle(members);
+  NET.seatOrder = [0];
+  for (var g = 1; g < n; g++) NET.seatOrder.push(g - 1 < members.length ? members[g - 1] : null);
+}
+/* 開始前のメンバー変動 (新規参加/退出) のたびに呼ぶ。
+   既定はランダム: 手動調整していない限り毎回シャッフルし直す。
+   手動調整済みの場合は配置を維持し、抜けた席を空けて新規は最小の空き席へ入れる。
+   再戦で待合室に戻った直後の席順も「維持」が既定 (netHostBackToWaiting が
+   seatManual を立てる) なので、メンバー変動で勝手に変わることはない。 */
+function netSeatMemberChanged() {
+  if (NET.started) return;
+  netEnsureSeatOrder();
+  if (NET.seatManual) {
+    var n = NET.tableSeats || 4;
+    var members = netMemberRelaySeats();
+    for (var g = 1; g < n; g++) {
+      var r = NET.seatOrder[g];
+      if (r != null && members.indexOf(r) < 0) NET.seatOrder[g] = null;
+    }
+    members.forEach(function (r2) {
+      if (NET.seatOrder.indexOf(r2) < 0) {
+        for (var g2 = 1; g2 < n; g2++) if (NET.seatOrder[g2] == null) { NET.seatOrder[g2] = r2; break; }
+      }
+    });
+  } else netShuffleSeats();
+  netRenderMembers();
+  netSendRoster();
+}
+/* 手動並べ替え: ゲーム席 g の着席者を dir 方向の隣席と入れ替える */
+function netMoveSeat(g, dir) {
+  if (NET.mode !== 'host' || NET.started) return;
+  netEnsureSeatOrder();
+  var h = g + dir;
+  if (g < 1 || h < 1 || h >= NET.seatOrder.length) return;
+  var tmp = NET.seatOrder[g]; NET.seatOrder[g] = NET.seatOrder[h]; NET.seatOrder[h] = tmp;
+  NET.seatManual = true;
+  netRenderMembers();
+  netSendRoster();
+}
+/* 引数はゲーム席。その席のゲストが接続中かどうか */
 function netSeatConnected(seat) {
-  return NET.seats[seat] === 'remote' && !!NET.guests[seat] && !!NET.guests[seat].connected && !!NET.tableWs && NET.tableWs.readyState === 1;
+  var r = netGameToRelay(seat);
+  if (r == null || r === 0) return false;
+  return NET.seats[r] === 'remote' && !!NET.guests[r] && !!NET.guests[r].connected && !!NET.tableWs && NET.tableWs.readyState === 1;
+}
+/* 引数は中継席 (ロスター送信などの送信境界用) */
+function netRelayConnected(r) {
+  return r != null && r > 0 && NET.seats[r] === 'remote' && !!NET.guests[r] && !!NET.guests[r].connected && !!NET.tableWs && NET.tableWs.readyState === 1;
 }
 function netToken() {
   try {
@@ -7829,11 +7930,12 @@ function netDefaultButtonValue(buttons) {
   return buttons.length ? buttons[buttons.length - 1].value : null;
 }
 function netPromptRaw(seat, kind, payload, defaultFn, tag) {
+  // seat はゲーム席。pendingPrompts にはゲーム席で保持し、中継へは中継席に変換して送る
   return new Promise(function (resolve) {
     if (!netSeatConnected(seat)) { resolve({ netDefault: true, value: defaultFn() }); return; }
     var id = NET.promptSeq++;
     NET.pendingPrompts[id] = { seat: seat, resolve: resolve, defaultFn: defaultFn, tag: tag };
-    var msg = { t: 'prompt', id: id, seat: seat, kind: kind };
+    var msg = { t: 'prompt', id: id, seat: netGameToRelay(seat), kind: kind };
     Object.keys(payload || {}).forEach(function (k) { msg[k] = payload[k]; });
     netSendTable(msg);
   });
@@ -8020,7 +8122,8 @@ function netSendSnapshots(force) {
     if (!netSeatConnected(seat)) continue;
     var data;
     try { data = netSnapshotFor(seat); } catch (e) { continue; }
-    var msg = JSON.stringify({ t: 'snap', seat: seat, data: data });
+    // seat は中継の宛先 (中継席)、gameSeat は受け手のゲーム席 (ゲストが自分の席を知るため)
+    var msg = JSON.stringify({ t: 'snap', seat: netGameToRelay(seat), gameSeat: seat, data: data });
     if (force || NET.lastSnapJson[seat] !== msg) { NET.lastSnapJson[seat] = msg; netSendTableRaw(msg); }
   }
 }
@@ -8033,7 +8136,7 @@ function netBroadcastModal(html) {
   var clean = String(html).replace(/<div class="modal-btns">[\s\S]*?<\/div>/, '');
   var n = G ? G.players.length : NET.tableSeats;
   for (var seat = 1; seat < n; seat++) {
-    if (netSeatConnected(seat)) netSendTable({ t: 'prompt', id: 0, seat: seat, kind: 'modal', html: clean, buttons: [] });
+    if (netSeatConnected(seat)) netSendTable({ t: 'prompt', id: 0, seat: netGameToRelay(seat), kind: 'modal', html: clean, buttons: [] });
   }
 }
 
@@ -8188,7 +8291,10 @@ function netOnControlChat(m) {
     if (seat === null && NET.guests[k].connected && NET.guests[k].name === m.name) seat = Number(k);
   });
   if (seat === null) return;
-  netHostDoubtRequest(seat, Number(mm[1]), Number(mm[2]));
+  // 依頼者は中継席で特定したので、ゲーム席に変換してから処理する (オーナー席はホスト座標=ゲーム席)
+  var gameSeat = netRelayToGame(seat);
+  if (gameSeat < 0) return;
+  netHostDoubtRequest(gameSeat, Number(mm[1]), Number(mm[2]));
 }
 function netHostDoubtRequest(seat, ownerPi, meldIdx) {
   if (!G || G.over || ownerPi === seat) return;
@@ -8208,15 +8314,21 @@ function netHostDoubtRequest(seat, ownerPi, meldIdx) {
    kind 'roster' は回答不要の通知として扱う (ゲスト側で振り分ける) */
 function netSendRoster() {
   if (NET.mode !== 'host') return;
+  netEnsureSeatOrder();
   var n = NET.tableSeats || 4;
+  // ロスターはゲーム席順 (予定席順)。ゲストはこれで自分の席順も分かる
   var seats = [];
-  for (var s = 0; s < n; s++) {
-    if (s === 0) seats.push({ seat: 0, name: NET.name || 'ホスト', connected: true });
-    else if (NET.guests[s] && NET.guests[s].name) seats.push({ seat: s, name: NET.guests[s].name, connected: !!NET.guests[s].connected });
-    else seats.push({ seat: s, name: '空席（CPU）', connected: false, cpu: true });
+  for (var g = 0; g < n; g++) {
+    if (g === 0) seats.push({ seat: 0, name: NET.name || 'ホスト', connected: true });
+    else {
+      var r = NET.seatOrder[g];
+      if (r != null && NET.guests[r] && NET.guests[r].name) seats.push({ seat: g, name: NET.guests[r].name, connected: !!NET.guests[r].connected });
+      else seats.push({ seat: g, name: '空席（CPU）', connected: false, cpu: true });
+    }
   }
-  for (var g = 1; g < n; g++) {
-    if (netSeatConnected(g)) netSendTable({ t: 'prompt', id: 0, seat: g, kind: 'roster', seats: seats });
+  for (var g2 = 1; g2 < n; g2++) {
+    var rr = NET.seatOrder[g2];
+    if (rr != null && netRelayConnected(rr)) netSendTable({ t: 'prompt', id: 0, seat: rr, kind: 'roster', seats: seats, you: g2 });
   }
 }
 /* ホスト側 */
@@ -8229,24 +8341,27 @@ function netHostOnTableMsg(m) {
   }
 }
 function netHostOnGuestEvent(m) {
-  var seat = m.seat;
+  var seat = m.seat; // 中継席
+  var gameSeat = netRelayToGame(seat);
   if (m.event === 'join' || m.event === 'reconnect') {
+    var isNewMember = !(NET.guests[seat] && NET.guests[seat].name);
     NET.guests[seat] = { name: m.name, connected: true };
     NET.seats[seat] = 'remote';
-    if (NET.started && G && G.players[seat]) {
-      G.players[seat].isHuman = true;
-      G.players[seat].name = m.name;
-      NET.lastSnapJson[seat] = null;
+    if (!NET.started && isNewMember) netSeatMemberChanged(); // 席順: 既定ランダム (手動調整済みなら維持)
+    if (NET.started && G && gameSeat >= 0 && G.players[gameSeat]) {
+      G.players[gameSeat].isHuman = true;
+      G.players[gameSeat].name = m.name;
+      NET.lastSnapJson[gameSeat] = null;
       netSendTable({ t: 'start', settings: JSON.parse(JSON.stringify(S)) });
       netSendSnapshots(true);
       renderAll();
       // 結果画面の全員待ちの最中なら、その席にも結果プロンプトを再送する (再びブロック対象になる)
-      if (NET.resultWait) NET.resultWait.rejoin(seat);
+      if (NET.resultWait) NET.resultWait.rejoin(gameSeat);
     }
   } else if (m.event === 'disconnect') {
     netHostGuestDown(seat);
   } else if (m.event === 'leave') {
-    if (!NET.started) { delete NET.guests[seat]; NET.seats[seat] = 'cpu'; if (NET.guests[seat]) NET.guests[seat].connected = false; }
+    if (!NET.started) { delete NET.guests[seat]; NET.seats[seat] = 'cpu'; netSeatMemberChanged(); }
     else netHostGuestDown(seat);
   }
   netRenderMembers();
@@ -8255,13 +8370,15 @@ function netHostOnGuestEvent(m) {
   if (NET.started && G) { netRefreshSeatsView(); renderAll(); }
 }
 function netHostGuestDown(seat) {
+  // seat は中継席。NET.guests / NET.seats は中継席キー、対局状態と未回答プロンプトはゲーム席で扱う
   if (NET.guests[seat]) NET.guests[seat].connected = false;
   if (NET.seats[seat] === 'remote') NET.seats[seat] = 'cpu';
-  if (G && G.players[seat]) G.players[seat].isHuman = false;
+  var gameSeat = netRelayToGame(seat);
+  if (G && gameSeat >= 0 && G.players[gameSeat]) G.players[gameSeat].isHuman = false;
   // その席宛の未回答プロンプトはデフォルト回答で解決する (対局を止めない)
   Object.keys(NET.pendingPrompts).forEach(function (id) {
     var e = NET.pendingPrompts[id];
-    if (e.seat === seat) { delete NET.pendingPrompts[id]; e.resolve({ netDefault: true, value: e.defaultFn() }); }
+    if (e.seat === gameSeat) { delete NET.pendingPrompts[id]; e.resolve({ netDefault: true, value: e.defaultFn() }); }
   });
   netRenderMembers();
 }
@@ -8270,15 +8387,21 @@ function netHostStart() {
   var seats = NET.tableSeats || 4;
   S.playerCount = seats;
   var sel = $('set-players'); if (sel) sel.value = String(seats);
+  netEnsureSeatOrder();
   NET.started = true;
   NET.lastSnapJson = {};
+  // ネット対戦では開始親もランダムにする (startMatch が NET.dealerBase を消費して G.dealerBase に移す)
+  NET.dealerBase = Math.floor(Math.random() * seats);
   netSendTable({ t: 'start', settings: JSON.parse(JSON.stringify(S)) });
   startMatch();
   for (var i = 0; i < G.players.length; i++) {
     var p = G.players[i];
-    if (i === 0) { p.name = NET.name || 'あなた'; p.isHuman = true; NET.seats[0] = 'local'; }
-    else if (NET.guests[i] && NET.guests[i].name) { p.name = NET.guests[i].name; p.isHuman = (NET.seats[i] === 'remote'); }
-    else { p.name = 'CPU ' + i; p.isHuman = false; NET.seats[i] = 'cpu'; }
+    if (i === 0) { p.name = NET.name || 'あなた'; p.isHuman = true; }
+    else {
+      var r = netGameToRelay(i);
+      if (r != null && NET.guests[r] && NET.guests[r].name) { p.name = NET.guests[r].name; p.isHuman = netRelayConnected(r); }
+      else { p.name = 'CPU ' + i; p.isHuman = false; }
+    }
   }
   $('net-panel').classList.add('hidden');
   var mc0 = $('net-match-chat'); if (mc0) mc0.classList.remove('hidden');
@@ -8292,6 +8415,9 @@ function netHostStart() {
 function netHostBackToWaiting() {
   if (NET.mode !== 'host' || !NET.started || !G || !G.over) return;
   NET.started = false;
+  // 再戦の席順は前局のまま維持するのが既定 (変えるかどうかはホストが選ぶ)。
+  // メンバー変動で再シャッフルされないよう、手動調整済みとして扱う
+  NET.seatManual = true;
   netSendTable({ t: 'back' });
   hideModal();
   var mc = $('net-match-chat'); if (mc) mc.classList.add('hidden');
@@ -8305,6 +8431,7 @@ function netGuestOnTableMsg(m) {
   if (m.t === 'start') { netGuestStart(m); return; }
   if (m.t === 'snap') {
     if (!m.data) return;
+    if (typeof m.gameSeat === 'number') NET.gameSeat = m.gameSeat; // 自分のゲーム席 (回転変換に使う)
     // 新しいスナップショットが届いた = 回線は復帰した
     netStopReconnect(); netShowDownBanner(false);
     G = m.data;
@@ -8351,8 +8478,9 @@ function netGuestStart(m) {
 }
 function netGuestOnPrompt(msg) {
   if (msg.kind === 'roster') {
-    // 待合室の席/名前一覧 (回答不要の通知)
+    // 待合室の席/名前一覧 (回答不要の通知)。ゲーム席順で届き、you が自分のゲーム席
     NET.roster = msg.seats || [];
+    if (typeof msg.you === 'number') { NET.rosterYou = msg.you; NET.gameSeat = msg.you; }
     netRenderMembers();
     return;
   }
@@ -8482,20 +8610,43 @@ function netRenderTables() {
 }
 function netRenderMembers() {
   var el = $('net-members'); if (!el) return;
-  var lines = [];
   var n = NET.tableSeats || 4;
-  for (var seat = 0; seat < n; seat++) {
-    if (seat === NET.seat) lines.push('席' + seat + ': ' + NET.name + '（あなた）');
-    else if (NET.mode === 'host' && NET.guests[seat]) lines.push('席' + seat + ': ' + NET.guests[seat].name + (NET.guests[seat].connected ? '' : '（切断中・CPU代打ち）'));
-    else if (NET.mode === 'host') lines.push('席' + seat + ': 空席（CPU）');
-    else if (NET.roster) {
-      var rs = NET.roster.find(function (r) { return r.seat === seat; });
-      lines.push('席' + seat + ': ' + (rs ? rs.name + (rs.connected || rs.cpu ? '' : '（切断中）') : '—'));
+  var html = '';
+  if (NET.mode === 'host') {
+    // ゲーム席順の予定席順。開始前は ↑/↓ で手動並べ替えできる (bd指示: 既定ランダム+手動可)
+    netEnsureSeatOrder();
+    for (var g = 0; g < n; g++) {
+      var label;
+      if (g === 0) label = NET.name + '（あなた）';
+      else {
+        var r = NET.seatOrder[g];
+        if (r != null && NET.guests[r] && NET.guests[r].name) label = NET.guests[r].name + (NET.guests[r].connected ? '' : '（切断中・CPU代打ち）');
+        else label = '空席（CPU）';
+      }
+      html += '<div class="net-member-row"><span>席' + g + ': ' + label + '</span>';
+      if (!NET.started && g > 0) {
+        html += ' <button class="net-seat-up sub" data-g="' + g + '"' + (g <= 1 ? ' disabled' : '') + '>↑</button>' +
+          ' <button class="net-seat-down sub" data-g="' + g + '"' + (g >= n - 1 ? ' disabled' : '') + '>↓</button>';
+      }
+      html += '</div>';
     }
-    else lines.push('席' + seat + ': —');
+    el.innerHTML = html;
+    el.querySelectorAll('.net-seat-up').forEach(function (b) { b.addEventListener('click', function () { netMoveSeat(Number(b.getAttribute('data-g')), -1); }); });
+    el.querySelectorAll('.net-seat-down').forEach(function (b) { b.addEventListener('click', function () { netMoveSeat(Number(b.getAttribute('data-g')), 1); }); });
+  } else if (NET.roster) {
+    // ゲスト側: ホストから届いたゲーム席順ロスターをそのまま表示する (並べ替えはホストのみ)
+    NET.roster.forEach(function (rs) {
+      var self = (NET.rosterYou != null && rs.seat === NET.rosterYou);
+      html += '<div>席' + rs.seat + ': ' + rs.name + (self ? '（あなた）' : '') + (!rs.connected && !rs.cpu ? '（切断中）' : '') + '</div>';
+    });
+    el.innerHTML = html;
+  } else {
+    var lines = [];
+    for (var seat = 0; seat < n; seat++) lines.push('席' + seat + ': ' + (seat === NET.seat ? NET.name + '（あなた）' : '—'));
+    el.innerHTML = lines.map(function (s) { return '<div>' + s + '</div>'; }).join('');
   }
-  el.innerHTML = lines.map(function (s) { return '<div>' + s + '</div>'; }).join('');
   var sb = $('net-start'); if (sb) sb.style.display = (NET.mode === 'host') ? '' : 'none';
+  var shb = $('net-shuffle'); if (shb) shb.style.display = (NET.mode === 'host' && !NET.started) ? '' : 'none';
   var bb = $('net-back'); if (bb) bb.style.display = (NET.mode === 'host' && NET.started && typeof G !== 'undefined' && G && G.over) ? '' : 'none';
   var tt = $('net-table-title'); if (tt) tt.textContent = '卓: ' + (NET.tableId || '');
 }
@@ -8512,6 +8663,8 @@ function netCreateTable() {
   NET.leaving = false; NET.hostGone = false;
   NET.tableSeats = isSanma() ? 3 : 4;
   NET.guests = {}; NET.seats = { 0: 'local' };
+  NET.seatOrder = [0]; for (var so = 1; so < NET.tableSeats; so++) NET.seatOrder.push(null);
+  NET.seatManual = false;
   var tableId = 't-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
   netConnectLobby();
   netConnectTable(tableId, { title: NET.name + 'の卓', variant: S.variant, seats: NET.tableSeats });
@@ -8538,6 +8691,8 @@ function netLeaveTable() {
   NET.mode = 'off';
   NET.hostGone = false;
   NET.roster = null;
+  NET.rosterYou = null; NET.gameSeat = null;
+  NET.seatOrder = null; NET.seatManual = false;
   var mc2 = $('net-match-chat'); if (mc2) mc2.classList.add('hidden');
   NET.guests = {}; NET.seats = {}; NET.pendingPrompts = {};
   $('net-table-view').classList.add('hidden');
@@ -8563,6 +8718,14 @@ function netInit() {
   });
   $('net-create').addEventListener('click', netCreateTable);
   $('net-start').addEventListener('click', netHostStart);
+  var nsh = $('net-shuffle');
+  if (nsh) nsh.addEventListener('click', function () {
+    if (NET.mode !== 'host' || NET.started) return;
+    netShuffleSeats();
+    NET.seatManual = false; // ランダムに戻したので、以降のメンバー変動でも再シャッフルされる
+    netRenderMembers();
+    netSendRoster();
+  });
   var nbk = $('net-back'); if (nbk) nbk.addEventListener('click', netHostBackToWaiting);
   $('net-leave').addEventListener('click', netLeaveTable);
   var sendLobbyChat = function () {
