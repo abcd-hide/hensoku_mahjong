@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-21-111]</title>
+<title>変則麻雀 [build 2026-11-22-112]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -19,6 +19,16 @@ button:disabled { opacity: .45; cursor: default; }
 
 #settings-panel { background: #f6f2e4; color: #222; margin: 12px; border-radius: 10px; padding: 14px; }
 #settings-panel h2 { margin-top: 0; }
+#net-panel { background: #eef4ea; color: #222; margin: 12px; border-radius: 10px; padding: 14px; }
+#net-panel h2 { margin-top: 0; }
+#net-panel h3 { margin: 10px 0 4px; }
+.net-chat { height: 110px; overflow-y: auto; background: #fff; border: 1px solid #bbb; border-radius: 6px; padding: 4px 8px; font-size: 13px; margin-bottom: 6px; }
+.net-table-row { display: flex; justify-content: space-between; align-items: center; background: #fff; border: 1px solid #bbb; border-radius: 6px; padding: 4px 8px; margin: 4px 0; }
+#net-match-chat { margin-top: 8px; }
+#net-match-chat-log { height: 90px; margin-top: 4px; }
+.net-match-chat-row { display: flex; gap: 4px; }
+.net-match-chat-row input { flex: 1; min-width: 0; }
+#net-members div { margin: 2px 0; }
 .set-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
 fieldset { border: 1px solid #bbb; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; }
 legend { font-weight: bold; padding: 0 6px; }
@@ -204,12 +214,13 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </head>
 <body>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-21-111</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-22-112</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
     <button id="btn-nodoubt">ダウト主張なし: OFF</button>
     <button id="btn-settings">ルール設定</button>
+    <button id="btn-net">ネット対戦</button>
     <button id="btn-newmatch">対戦開始</button>
   </div>
 </header>
@@ -349,6 +360,29 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
   </div>
 </section>
 
+<section id="net-panel" class="hidden">
+  <h2>ネットワーク対戦</h2>
+  <div id="net-lobby-view">
+    <label>ニックネーム <input type="text" id="net-name" maxlength="12"></label>
+    <button id="net-connect">ロビーに接続</button>
+    <span id="net-lobby-status" class="note">未接続</span>
+    <h3>卓一覧</h3>
+    <div id="net-tables"><p class="note">未接続</p></div>
+    <p><button id="net-create">卓を作る（現在の設定で）</button></p>
+    <h3>ロビーチャット</h3>
+    <div id="net-lobby-chat" class="net-chat"></div>
+    <input type="text" id="net-lobby-chat-input" maxlength="200"><button id="net-lobby-chat-send">送信</button>
+  </div>
+  <div id="net-table-view" class="hidden">
+    <h3 id="net-table-title">卓</h3>
+    <div id="net-members"></div>
+    <p><button id="net-start">対戦開始</button> <button id="net-leave" class="sub">卓を出る</button></p>
+    <h3>卓チャット</h3>
+    <div id="net-table-chat" class="net-chat"></div>
+    <input type="text" id="net-table-chat-input" maxlength="200"><button id="net-table-chat-send">送信</button>
+  </div>
+</section>
+
 <main id="board-wrap" class="hidden">
  <div id="board-main">
   <div id="table">
@@ -363,7 +397,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
   </div>
   <div id="action-bar"></div>
  </div>
-  <div id="side-col"><button id="btn-log-toggle" class="sub">📋 ログを表示</button><div id="narabe-panel" class="hidden"></div><div id="log"></div></div>
+  <div id="side-col"><button id="btn-log-toggle" class="sub">📋 ログを表示</button><div id="narabe-panel" class="hidden"></div><div id="log"></div><div id="net-match-chat" class="hidden"><button id="net-match-chat-toggle" class="sub">💬 卓チャット</button><div id="net-match-chat-body" class="hidden"><div id="net-match-chat-log" class="net-chat"></div><div class="net-match-chat-row"><input type="text" id="net-match-chat-input" maxlength="200" placeholder="チャット"><button id="net-match-chat-send">送信</button></div></div></div></div>
 </main>
 
 <div id="modal" class="hidden"><div id="modal-box"></div></div>
@@ -1312,6 +1346,8 @@ function pickVoice() {
   } catch (e) { return null; }
 }
 function speakCall(text) {
+  // ネット対戦ホスト時: 申告音声はゲストにもイベントで送る (ゲスト側でローカル再生)
+  if (typeof NET !== 'undefined' && NET && NET.mode === 'host') netSendTable({ t: 'speak', text: String(text) });
   if (!S.voice) return;
   try {
     if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return;
@@ -1833,6 +1869,7 @@ function renderAll() {
       else doubtFocusKey = null;
     }
   }
+  netAfterRender();
 }
 var lastActionPend = null;
 function renderActions() {
@@ -1857,6 +1894,11 @@ function renderActions() {
 }
 /* 汎用「人間の選択待ち」 */
 function waitHuman(buttons) {
+  // ネット対戦: 対象席がリモートならプロンプトをゲストへ転送する (NET.promptSeat は呼び出し側が直前にセット)
+  if (typeof NET !== 'undefined' && NET && NET.mode === 'host' && NET.promptSeat != null) {
+    var nseat = NET.promptSeat; NET.promptSeat = null;
+    if (nseat !== 0) return netPromptButtons(nseat, buttons);
+  }
   return new Promise(function (resolve) {
     G.pending = { buttons: buttons, resolve: resolve };
     renderActions();
@@ -1937,6 +1979,11 @@ function toggleBoardView() {
   fitBoardToView(on);
 }
 function modalChoice(html, buttons) {
+  // ネット対戦: 対象席がリモートならモーダルをプロンプトとしてゲストへ転送する
+  if (typeof NET !== 'undefined' && NET && NET.mode === 'host' && NET.promptSeat != null) {
+    var nseat2 = NET.promptSeat; NET.promptSeat = null;
+    if (nseat2 !== 0) return netPromptModal(nseat2, html, buttons);
+  }
   showModal('<div id="modal-result">' + html + '</div><div class="modal-btns"><button id="btn-board-view" class="sub" data-back="判断に戻る">場を見る</button>' + buttons.map(function (b, i) { return '<button data-mi="' + i + '"' + (b.cls ? ' class="' + b.cls + '"' : '') + '>' + b.label + '</button>'; }).join('') + '</div>');
   $('btn-board-view').addEventListener('click', toggleBoardView);
   return new Promise(function (resolve) {
@@ -2046,6 +2093,7 @@ async function doDraw(pi, rinshan) {
     var use = false;
     if (p.isHuman) {
       renderAll();
+      NET.promptSeat = pi;
       use = await waitHuman([{ label: '特技:4枚ヅモを使う（残' + (2 - (p.abilityState.fourUsed || 0)) + '回）', value: true }, { label: '使わない', value: false, cls: 'sub' }]);
     } else use = Math.random() < 0.7;
     if (use && G.wall.length >= 4) {
@@ -2053,6 +2101,7 @@ async function doDraw(pi, rinshan) {
       var four = [G.wall.pop(), G.wall.pop(), G.wall.pop(), G.wall.pop()];
       var chosen;
       if (p.isHuman) {
+        NET.promptSeat = pi;
         chosen = await modalChoice('<h3>4枚ヅモ: 好きな1枚を選んでください（残り3枚は山の上に戻ります）</h3><div>' +
           four.map(function (t) { return tileHTML(t, {}); }).join(' ') + '</div>',
           four.map(function (t, i) { return { label: MJ.TILE_NAMES[t.t] + (t.red ? '（赤）' : '') + (t.wild ? '（★）' : ''), value: i }; }));
@@ -2165,6 +2214,7 @@ async function simulKitaPhase(pi) {
   while (canKita(p)) {
     if (p.isHuman) {
       G.current = pi; renderAll();
+      NET.promptSeat = pi;
       var ans = await modalChoice('<h3>北抜き</h3><p>' + p.name + ': 北を抜きますか？（抜きドラ+1、嶺上から1枚引きます）</p>', [{ label: '北を抜く', value: true }, { label: '抜かない', value: false, cls: 'sub' }]);
       if (!ans) break;
     } else {
@@ -2260,6 +2310,7 @@ async function executeKan(pi, k) {
     if (robbers.length) {
       var first = robbers[0];
       if (G.players[first.pi].isHuman) {
+        NET.promptSeat = first.pi;
         var ok = await waitHuman([{ label: '槍槓ロン！', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
         if (!ok) robbers = [];
       }
@@ -2337,7 +2388,13 @@ if (S.variant === 'poverty' && G.shibariRestrict) restrict = G.shibariRestrict;
 restrict = applyKuikaeRestrict(p, restrict);
 G.pendingDiscard = { restrict: restrict, riichiMode: mode.riichi, riichiOpen: mode.riichi && mode.open };
 renderAll();
-var picked = await new Promise(function (resolve) {
+var picked;
+if (NET.mode === 'host' && pi !== 0) {
+// リモート席の捨て牌判断はゲストへプロンプト転送する (ボタン+牌クリックを1つのプロンプトで)。
+// 切断済みの席は netPromptDiscard 内で CPU の手にフォールバックする
+picked = await netPromptDiscard(pi, buttons, restrict);
+} else {
+picked = await new Promise(function (resolve) {
 G.discardWait = { resolve: resolve};
 if (buttons.length) {
 var prevPending = G.pending;
@@ -2345,6 +2402,7 @@ G.pending = { buttons: buttons, resolve: function (v) { G.pending = prevPending;
 renderActions();
 }
 });
+}
 G.pendingDiscard = null;
 if (picked.button === 'tsumo' && pd && pd.ev) {
 G.pending = null; renderActions();
@@ -2486,11 +2544,23 @@ var html = '<h3>特技の取得</h3><p>' + MJ.TILE_NAMES[tile.t] + ' を捨て�
 free.map(function (a) { return '<div><b>' + a.name + '</b> - ' + a.desc + '</div>';}).join('') + '</div>';
 var buttons = free.map(function (a) { return { label: a.name, value: a.id};});
 buttons.push({ label: '取得しない', value: null});
+NET.promptSeat = pi; // ネット対戦: 取得を聞くのは捨てる本人 (リモート席なら転送される)
 return modalChoice(html, buttons);
 }
 function onHumanTileClick(tileId) {
 if (!G) return;
 if (G.exchangePut) { G.exchangePut.resolve(tileId); return; }
+// ネット対戦ゲストの牌選びプロンプト (kind 'pick'): クリックで選択をトグルする
+if (typeof NET !== 'undefined' && NET && NET.mode === 'guest' && G.netPick) {
+var npk = G.netPick;
+if (!npk.ids[tileId]) return;
+var nix = npk.selected.indexOf(tileId);
+if (nix >= 0) npk.selected.splice(nix, 1);
+else if (npk.selected.length < npk.maxN) npk.selected.push(tileId);
+else { npk.selected.shift(); npk.selected.push(tileId); }
+netGuestRenderPick();
+return;
+}
 if (!G.discardWait) return;
 var p = G.players[0];
 if (G.current!== 0) return;
@@ -2520,6 +2590,7 @@ if (!ev) { markShapeFuriten(q, tile.t); continue; }
 if (isFuriten(q)) { continue;}
 if (q.isHuman) {
 renderAll();
+NET.promptSeat = qi;
 var ok = await waitHuman([{ label: 'ロン！ ' + hanText(ev) + ' ' + ev.fu + '符', value: true}, { label: '見逃す', value: false, cls: 'sub'}]);
 if (!ok) { if (q.riichi) q.riichiFuriten = true; else q.tempFuriten = true; continue;}
 }
@@ -2583,10 +2654,11 @@ for (var ki = 0; ki < claimers.length; ki++) {
 var cl = claimers[ki], cp = G.players[cl.pi];
 if (cl.kind === 'wild') {
 var chosen = null;
-if (cp.isHuman && !noCallOn()) {
+if (cp.isHuman && !(cl.pi === 0 && noCallOn())) { // 鳴きなしはローカル席(0)の好みだけに効く (ネット対戦: リモート席には適用しない)
 renderAll();
 var wbtns = cl.options.map(function (o, oi2) { return { label: (o.callKind === 'kan' ? 'カン' : 'ポン') + '（万能: ' + MJ.TILE_NAMES[tile.t] + '→' + MJ.TILE_NAMES[o.effType] + '）' + wildOptionLabel(o), value: oi2 }; });
 wbtns.push({ label: 'パス', value: 'pass', cls: 'sub' });
+NET.promptSeat = cl.pi;
 var wans = await waitHuman(wbtns);
 if (wans !== 'pass' && wans !== null && wans !== undefined) chosen = cl.options[Number(wans)];
 } else chosen = cpuWildCallChoice(cl.pi, cl.options);
@@ -2595,7 +2667,7 @@ continue;
 }
 var take = false;
 var chosenKind = cl.kind;
-if (cp.isHuman && noCallOn()) { humanPassedBoth = true; oomaiHumanPassed = true; }
+if (cp.isHuman && cl.pi === 0 && noCallOn()) { humanPassedBoth = true; oomaiHumanPassed = true; }
 else if (cp.isHuman) {
 renderAll();
 var chiSeqsH = (cl.kind !== 'oomai' && ((!isSanma() && cl.pi === (pi + 1) % NP()) || (isSanma() && S.variant === 'roleplay' && hasAbility(cp, 'dokochi')))) ? chiOptions(cp, tile.t) : [];
@@ -2612,10 +2684,12 @@ else if (cl.kind === 'pon') btnsH.push({ label: 'ポン！ ' + MJ.TILE_NAMES[til
 if (chiSeqsH.length) btnsH.push({ label: 'チー！ ' + MJ.TILE_NAMES[tile.t], value: 'chi' });
 btnsH = btnsH.concat(wildBtnsH);
 btnsH.push({ label: 'パス', value: 'pass', cls: 'sub' });
+NET.promptSeat = cl.pi;
 var ansH = await waitHuman(btnsH);
 if (ansH === 'chi') {
 var seqH = chiSeqsH[0];
 if (chiSeqsH.length > 1) {
+NET.promptSeat = cl.pi;
 var csH = await modalChoice('<h3>チーの形を選んでください</h3>', chiSeqsH.map(function (sv) { return { label: MJ.TILE_NAMES[sv] + MJ.TILE_NAMES[sv + 1] + MJ.TILE_NAMES[sv + 2], value: sv }; }));
 if (csH !== null && csH !== undefined) seqH = csH;
 }
@@ -2631,6 +2705,7 @@ if (take) chosenKind = ansH;
 var pkBtns = cl.kind === 'kan'
   ? [{ label: 'カン！ ' + MJ.TILE_NAMES[tile.t], value: 'kan' }, { label: 'ポン！ ' + MJ.TILE_NAMES[tile.t], value: 'pon' }, { label: 'パス', value: 'pass', cls: 'sub' }]
   : [{ label: 'ポン！ ' + MJ.TILE_NAMES[tile.t], value: 'pon' }, { label: 'パス', value: 'pass', cls: 'sub' }];
+NET.promptSeat = cl.pi;
 var pkAns = await waitHuman(pkBtns);
 take = pkAns === 'pon' || pkAns === 'kan';
 if (take) chosenKind = pkAns;
@@ -2663,6 +2738,7 @@ if (qp.isHuman) {
 renderAll();
 var cbtns = wcopts.map(function (o, oi3) { return { label: 'チー（万能: ' + MJ.TILE_NAMES[tile.t] + '→' + MJ.TILE_NAMES[o.effType] + '）' + wildOptionLabel(o), value: oi3 }; });
 cbtns.push({ label: 'パス', value: 'pass', cls: 'sub' });
+NET.promptSeat = qpi;
 var cans = await waitHuman(cbtns);
 if (cans !== 'pass' && cans !== null && cans !== undefined) wchosen = wcopts[Number(cans)];
 } else wchosen = cpuWildCallChoice(qpi, wcopts);
@@ -2674,9 +2750,11 @@ continue;
 var takeChi = false, chosenSeq = seqs[0];
 if (qp.isHuman) {
 renderAll();
+NET.promptSeat = qpi;
 var ans = await waitHuman([{ label: 'チー！ ' + MJ.TILE_NAMES[tile.t], value: true}, { label: 'パス', value: false, cls: 'sub'}]);
 takeChi =!!ans;
 if (takeChi && seqs.length > 1) {
+NET.promptSeat = qpi;
 chosenSeq = await modalChoice('<h3>チーの形を選んでください</h3>', seqs.map(function (s) {
 return { label: MJ.TILE_NAMES[s] + MJ.TILE_NAMES[s + 1] + MJ.TILE_NAMES[s + 2], value: s};
 }));
@@ -2739,6 +2817,7 @@ async function collectRons(discarderPi, dInfo) {
     if (isFuriten(q)) continue;
     if (q.isHuman) {
       renderAll();
+      NET.promptSeat = qi;
       var ok = await waitHuman([{ label: 'ロン！ ' + hanText(ev) + ' ' + ev.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
       if (!ok) { if (q.riichi) q.riichiFuriten = true; else q.tempFuriten = true; continue; }
     }
@@ -2780,7 +2859,11 @@ async function pickDiscardSimple(pi, opts) {
     if (mode.riichi) buttons.push({ label: 'リーチをやめる', value: 'cancelmode', cls: 'sub' });
     G.pendingDiscard = { restrict: applyKuikaeRestrict(p, (p.riichi && p.extraTileId) ? [p.extraTileId] : (mode.riichi ? riichiIds : null)) };
     renderAll();
-    var picked = await new Promise(function (resolve) {
+    var picked;
+    if (NET.mode === 'host' && pi !== 0) {
+      // リモート席: ゲストへ捨て牌プロンプト転送 (getDiscard と同じ経路)
+      picked = await netPromptDiscard(pi, buttons, G.pendingDiscard.restrict);
+    } else picked = await new Promise(function (resolve) {
       G.discardWait = { resolve: resolve };
       if (buttons.length) {
         var prevPending = G.pending;
@@ -2858,18 +2941,19 @@ async function callPhaseSimul(roundDiscards) {
         var seqs = (!isSanma() && pi === (rd.pi + 1) % NP()) ? chiOptions(p, tile.t) : []; // チーは直前のプレイヤーからのみ (サンマはチーなし)
         if (!kind && !seqs.length) continue;
         var doCall = null;
-        if (p.isHuman && !noCallOn()) {
+        if (p.isHuman && !(pi === 0 && noCallOn())) { // 鳴きなしはローカル席だけに効く
           var btns = [];
           if (kind === 'kan') { btns.push({ label: 'カン！ ' + MJ.TILE_NAMES[tile.t] + '（' + G.players[rd.pi].name + '）', value: 'kan' }); btns.push({ label: 'ポン！ ' + MJ.TILE_NAMES[tile.t] + '（' + G.players[rd.pi].name + '）', value: 'pon' }); }
           else if (kind === 'pon') btns.push({ label: 'ポン！ ' + MJ.TILE_NAMES[tile.t] + '（' + G.players[rd.pi].name + '）', value: 'pon' });
           if (seqs.length) btns.push({ label: 'チー！ ' + MJ.TILE_NAMES[tile.t] + '（' + G.players[rd.pi].name + '）', value: 'chi' });
           btns.push({ label: 'パス', value: 'pass', cls: 'sub' });
           renderAll();
+          NET.promptSeat = pi;
           var ans = await waitHuman(btns);
           if (ans === 'pon' || ans === 'kan') doCall = { kind: ans, seq: null };
           else if (ans === 'chi') {
             var seq = seqs[0];
-            if (seqs.length > 1) seq = await modalChoice('<h3>チーの形を選んでください</h3>', seqs.map(function (sv) { return { label: MJ.TILE_NAMES[sv] + MJ.TILE_NAMES[sv + 1] + MJ.TILE_NAMES[sv + 2], value: sv }; }));
+            if (seqs.length > 1) { NET.promptSeat = pi; seq = await modalChoice('<h3>チーの形を選んでください</h3>', seqs.map(function (sv) { return { label: MJ.TILE_NAMES[sv] + MJ.TILE_NAMES[sv + 1] + MJ.TILE_NAMES[sv + 2], value: sv }; })); }
             doCall = { kind: 'chi', seq: seq };
           }
         } else {
@@ -2936,6 +3020,7 @@ async function drawPhaseAction(pi) {
       pd.kans.forEach(function (k, i) { btns.push({ label: (k.kind === 'ankan' ? '暗槓 ' : '加槓 ') + MJ.TILE_NAMES[k.tile], value: 'kan' + i }); });
       if (canKita(p)) btns.push({ label: '北を抜く（ドラ+1）', value: 'kita' });
       btns.push({ label: 'そのまま', value: 'none', cls: 'sub' });
+      NET.promptSeat = pi;
       var ans = await waitHuman(btns);
       if (ans === 'tsumo' && pd.ev) { await settleSimultaneous([{ pi: pi, ev: pd.ev, kind: 'tsumo', tile: G.lastDrawn }]); return 'win'; }
       if (typeof ans === 'string' && ans.indexOf('kan') === 0) {
@@ -2970,6 +3055,7 @@ async function roundExchange() {
         if (pkp.riichi) pkp.extraTileId = pkt ? pkt.id : pkp.extraTileId;
         var pev = pkt ? evalWin(pkp, pkt.t, { tsumo: true, rinshan: true, winningRed: pkt.red }) : null;
         if (pev && pkp.isHuman) {
+          NET.promptSeat = pk;
           var pok = await waitHuman([{ label: 'ツモ！（嶺上）' + hanText(pev) + ' ' + pev.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
           if (!pok) pev = null;
         }
@@ -2984,6 +3070,7 @@ async function roundExchange() {
     if (p.riichi) tile = p.hand.find(function (t) { return t.id === p.extraTileId; }) || p.hand[p.hand.length - 1];
     else if (p.isHuman) {
       log('下家へ渡す牌を1枚選んでください');
+      NET.promptSeat = pi;
       var pick = await waitPutOrButton51([]);
       tile = p.hand.find(function (t) { return t.id === pick.tileId; });
     } else {
@@ -3017,6 +3104,7 @@ async function roundExchange() {
     var ev = kt ? evalWin(wp, kt.t, { tsumo: true, rinshan: true, winningRed: kt.red }) : evalWin(wp, rt.t, { tsumo: true, winningRed: rt.red });
     if (!ev) continue;
     if (wp.isHuman) {
+      NET.promptSeat = wi;
       var ok = await waitHuman([{ label: 'ツモ！' + (kt ? '（嶺上）' : '（回ってきた牌）') + hanText(ev) + ' ' + ev.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
       if (!ok) continue;
     }
@@ -3036,6 +3124,7 @@ async function roundExchange() {
       var kansBtns = pd.kans.map(function (kk, i2) { return { label: (kk.kind === 'ankan' ? '暗槓 ' : '加槓 ') + MJ.TILE_NAMES[kk.tile], value: i2 }; });
       kansBtns.push({ label: 'カンしない', value: 'none', cls: 'sub' });
       renderAll();
+      NET.promptSeat = ki2;
       var kansAns = await waitHuman(kansBtns);
       doKan = kansAns !== 'none' && kansAns !== null && kansAns !== undefined;
       if (doKan) pd.kans = [pd.kans[Number(kansAns)]];
@@ -3103,6 +3192,7 @@ async function roundFourdraw() {
     if (p.riichi) kept = riichiDraftKeep(p);
     else if (p.isHuman) {
       log('ドラフト: 欲しい牌を1枚選んでください');
+      NET.promptSeat = pi;
       var pick = await waitCenterOrButton51([]);
       kept = pick.tile;
     } else {
@@ -3128,6 +3218,7 @@ async function roundFourdraw() {
     if (pd.ev) {
       var declare = true;
       if (p.isHuman) {
+        NET.promptSeat = pi;
         var ok = await waitHuman([{ label: 'ツモ宣言する！ ' + hanText(pd.ev) + ' ' + pd.ev.fu + '符', value: true }, { label: '宣言しない', value: false, cls: 'sub' }]);
         declare = !!ok;
       }
@@ -3137,6 +3228,7 @@ async function roundFourdraw() {
       if (p.isHuman) {
         var kansBtns = pd.kans.map(function (kk, i2) { return { label: (kk.kind === 'ankan' ? '暗槓 ' : '加槓 ') + MJ.TILE_NAMES[kk.tile], value: i2 }; });
         kansBtns.push({ label: 'カンしない', value: 'none', cls: 'sub' });
+        NET.promptSeat = pi;
         var kansAns = await waitHuman(kansBtns);
         doKan = kansAns !== 'none' && kansAns !== null && kansAns !== undefined;
         if (doKan) pd.kans = [pd.kans[Number(kansAns)]];
@@ -3288,6 +3380,7 @@ async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
     var kTruth = !!addedTile && (addedTile.t === meld.tile || !!addedTile.wild);
     var kActAsLie = !kTruth;
     if (kTruth && owner.isHuman) {
+      NET.promptSeat = ownerPi;
       var kAns = await modalChoice('<h3>' + doubter.name + ' があなたの加槓をダウトしました！</h3>' +
         '<p>ダウトされた加槓: <b>' + doubtMeldLabel(meld) + '</b></p>' +
         '<p>' + meldTilesHTML(meld, true, true, ownerPi) + '</p>' +
@@ -3326,6 +3419,7 @@ async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
   var mLabel = doubtMeldLabel(meld);
   var actAsLie = !truth;
   if (truth && owner.isHuman) {
+    NET.promptSeat = ownerPi;
     var ans = await modalChoice('<h3>' + doubter.name + ' があなたの鳴きをダウトしました！</h3>' +
       '<p>ダウトされた鳴き: <b>' + doubtMeldLabel(meld) + '</b></p>' +
       '<p>' + meldTilesHTML(meld, true, true, ownerPi) + '</p>' +
@@ -3467,6 +3561,7 @@ async function doubtExecuteKakan(pi, meldIndex, tileObj) {
   if (robbers.length) {
     var first = robbers[0];
     if (G.players[first.pi].isHuman) {
+      NET.promptSeat = first.pi;
       var ok = await waitHuman([{ label: '槍槓ロン！', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
       if (!ok) robbers = [];
     }
@@ -3491,17 +3586,30 @@ async function doubtImmediateWindow(ownerPi, meld) {
     var wants = false;
     if (q.isHuman) {
       renderAll();
-      wants = await new Promise(function (resolve) {
-        var done = function (v) { if (G.immediateDoubt && G.immediateDoubt.meld === meld) G.immediateDoubt = null; resolve(v); };
-        G.immediateDoubt = { meld: meld, resolve: done };
-        G.pending = { buttons: [{ label: 'ダウト！（' + G.players[ownerPi].name + 'の' + doubtMeldLabel(meld) + ': 嘘なら2000点もらえる）', value: true }, { label: '見送る', value: false, cls: 'sub' }], resolve: function (v) { done(!!v); } };
-        renderActions();
-      });
+      if (NET.mode === 'host' && qi !== 0) {
+        // リモート席の即ダウト窓はボタン・プロンプトとして転送する
+        wants = await netPromptButtons(qi, [{ label: 'ダウト！（' + G.players[ownerPi].name + 'の' + doubtMeldLabel(meld) + ': 嘘なら2000点もらえる）', value: true }, { label: '見送る', value: false, cls: 'sub' }]);
+      } else {
+        wants = await new Promise(function (resolve) {
+          var done = function (v) { if (G.immediateDoubt && G.immediateDoubt.meld === meld) G.immediateDoubt = null; resolve(v); };
+          G.immediateDoubt = { meld: meld, qi: qi, resolve: done };
+          G.pending = { buttons: [{ label: 'ダウト！（' + G.players[ownerPi].name + 'の' + doubtMeldLabel(meld) + ': 嘘なら2000点もらえる）', value: true }, { label: '見送る', value: false, cls: 'sub' }], resolve: function (v) { done(!!v); } };
+          renderActions();
+        });
+      }
     } else wants = Math.random() < 0.18;
     if (wants) { await doubtResolveMeld(qi, ownerPi, meld, true); return; }
   }
 }
 function onDoubtButton(ownerPi, meldIdx) {
+  if (typeof NET !== 'undefined' && NET && NET.mode === 'guest') {
+    // ゲストのダウトボタン: 盤面は回転済み表示なので、オーナー席をホスト座標に戻して
+    // 制御チャットでホストへ依頼する (中継が転送する通常チャットに制御接頭辞を付ける)
+    if (!G || G.over) return;
+    var hostOwner = (NET.seat + ownerPi) % NP();
+    netSendTable({ t: 'chat', text: '\u0001D:' + hostOwner + ':' + meldIdx });
+    return;
+  }
   if (!G || G.over) return;
   var owner = G.players[ownerPi];
   var meld = owner && owner.melds[meldIdx];
@@ -3715,7 +3823,7 @@ async function doubtOverrideRounds(pi, tile, cur) {
     for (var oi = 1; oi < NP() && !replaced; oi++) {
       var cqi = (pi + oi) % NP(), cq = G.players[cqi];
       if (cqi === cur.pi || cq.riichi) continue;
-      if (cq.isHuman && (noCallOn() || noDoubtClaimOn())) continue; // フラグONなら被せも自動パス (bd報告 2026-11-19)
+      if (cq.isHuman && cqi === 0 && (noCallOn() || noDoubtClaimOn())) continue; // フラグONなら被せも自動パス (bd報告 2026-11-19)。フラグはローカル席だけに効く (ネット対戦)
       var canKan = cur.kind !== 'kan' || oi < curDist;
       var canPon = cur.kind === 'chi' || (cur.kind === 'pon' && oi < curDist);
       if (!canKan && !canPon) continue;
@@ -3728,6 +3836,7 @@ async function doubtOverrideRounds(pi, tile, cur) {
         btns.push({ label: 'パス', value: 'pass', cls: 'sub' });
         log(G.players[cur.pi].name + ' の' + kindName[cur.kind] + ' に被せることができます（より強い鳴きだけ可能）');
         renderAll();
+        NET.promptSeat = cqi;
         var ans = await waitHuman(btns);
         if (ans === 'kan' || ans === 'pon') choice = ans;
       } else {
@@ -3766,7 +3875,7 @@ async function doubtCallPhase(pi, tile) {
   for (var oi = 1; oi < NP(); oi++) {
     var cqi = (pi + oi) % NP(), cq = G.players[cqi];
     if (cq.riichi) continue;
-    if (cq.isHuman && !noCallOn() && !noDoubtClaimOn()) { // 主張の自動パスは「鳴きなし」「ダウト主張なし」のどちらかONで効く (bd報告 2026-11-19)
+    if (cq.isHuman && !(cqi === 0 && (noCallOn() || noDoubtClaimOn()))) { // 主張の自動パスは「鳴きなし」「ダウト主張なし」のどちらかONで効く (bd報告 2026-11-19)。ただし両フラグともローカル席(0)の好みだけに効く (ネット対戦)
       var btns = [];
       if (cq.hand.length >= 3) btns.push({ label: 'カン！（主張）' + MJ.TILE_NAMES[tile.t], value: 'kan' });
       if (cq.hand.length >= 2) btns.push({ label: 'ポン！（主張）' + MJ.TILE_NAMES[tile.t], value: 'pon' });
@@ -3774,12 +3883,14 @@ async function doubtCallPhase(pi, tile) {
       if (!btns.length) continue;
       btns.push({ label: 'パス', value: 'pass', cls: 'sub' });
       renderAll();
+      NET.promptSeat = cqi;
       var ans = await waitHuman(btns);
       if (ans === 'kan' || ans === 'pon') claims.push({ pi: cqi, kind: ans, seq: null });
       else if (ans === 'chi') {
         var seqs = doubtChiSeqs(tile.t);
         var seq = seqs[0];
         if (seqs.length > 1) {
+          NET.promptSeat = cqi;
           var cs = await modalChoice('<h3>チーの形を選んでください（主張）</h3>', seqs.map(function (b) {
             return { label: MJ.TILE_NAMES[b] + MJ.TILE_NAMES[b + 1] + MJ.TILE_NAMES[b + 2], value: b };
           }));
@@ -3920,6 +4031,7 @@ async function doubtRonPhase(pi, tile, houtei) {
       // ボタンの文言で宣言の種類が分かるようにする (bd指示 2026-11-19):
       // 嘘だけなら「ダウトロン」、本物・嘘の両方できるなら「選べるロン」
       var ronWord = (trueEv && fakeEv) ? '選べるロン！ ' : (fakeEv ? 'ダウトロン！ ' : 'ロン！ ');
+      NET.promptSeat = qi;
       wants = await waitHuman([{ label: ronWord + hanText(shownEv) + ' ' + shownEv.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
       if (!wants) { markShapeFuriten(q, tile.t); continue; }
     } else {
@@ -3931,6 +4043,7 @@ async function doubtRonPhase(pi, tile, houtei) {
     if (discarder.isHuman) {
       renderAll();
       var shownEvD = trueEv || fakeEv;
+      NET.promptSeat = pi;
       var ansD = await modalChoice('<h3>' + q.name + ' がロンと宣言しました！</h3>' +
         '<p>あなたの捨て牌 ' + MJ.TILE_NAMES[tile.t] + ' に対するロンです（' + hanText(shownEvD) + ' ' + shownEvD.fu + '符）。<br>嘘だと思いますか？</p>',
         [{ label: 'ダウトする！（嘘なら点数を逆にもらえる）', value: true }, { label: 'ダウトしない（通常の支払い）', value: false, cls: 'sub' }]);
@@ -3970,6 +4083,7 @@ async function doubtMaybeStack(pi) {
   if (!(since > 0 && since % 3 === 0 && p.lastStackOwnTurn !== p.ownTurns && p.score >= 1000)) return;
   var stack = false;
   if (p.isHuman) {
+    NET.promptSeat = pi;
     var ans = await modalChoice('<h3>重ねリーチをしますか？（1000点で+1翻）</h3>', [
       { label: '重ねリーチする', value: 'yes' }, { label: 'しない', value: 'no', cls: 'sub' }
     ]);
@@ -3995,6 +4109,7 @@ async function doubtRiichiTurnActions(pi) {
   if (p.riichi) {
     var cancel = false;
     if (p.isHuman) {
+      NET.promptSeat = pi;
       var ans2 = await modalChoice('<h3>リーチを解除しますか？（リーチ棒は戻りません）</h3>', [
         { label: '解除する', value: 'yes' }, { label: 'このまま', value: 'no', cls: 'sub' }
       ]);
@@ -4149,6 +4264,7 @@ async function napoleonAuctionPhase() {
       var cands = napoleonCandidates(best);
       var buttons = [{ label: 'パス', value: 'pass', cls: 'sub' }].concat(
         cands.slice(0, 6).map(function (c, ix) { return { label: c.points + '点・' + c.trumpName, value: ix }; }));
+      NET.promptSeat = pi;
       var chosen = await modalChoice('<h3>ビット（現在: ' + (best ? best.points + '点・' + napoleonTrumpName(best.trump) + ' / ' + G.players[best.pi].name : 'なし') + '）</h3><p>ビットすると、その点数以上でないと上がれなくなります（ナポレオン）</p>', buttons);
       if (chosen !== 'pass' && chosen !== null && chosen !== undefined && cands[chosen]) bid = cands[chosen];
     } else {
@@ -4197,6 +4313,7 @@ async function napoleonAuctionPhase() {
   }
   // 副官牌の指定
   if (nap.isHuman) {
+    NET.promptSeat = napPi;
     var suitChoice = await modalChoice('<h3>副官牌の種類を選んでください</h3>', [
       { label: '萬子', value: 'man' }, { label: '筒子', value: 'pin' }, { label: '索子', value: 'sou' }, { label: '字牌', value: 'honor' }
     ]);
@@ -4207,6 +4324,7 @@ async function napoleonAuctionPhase() {
       var base = { man: 0, pin: 9, sou: 18 }[suitChoice || 'man'];
       for (var nn = 1; nn <= 9; nn++) typeOpts.push({ label: MJ.TILE_NAMES[base + nn - 1], value: base + nn - 1 });
     }
+    NET.promptSeat = napPi;
     var chosenType = await modalChoice('<h3>副官牌を選んでください（その牌を持っている人が副官になります）</h3>', typeOpts);
     G.napoleon.adjutantType = (chosenType === null || chosenType === undefined) ? typeOpts[0].value : chosenType;
   } else {
@@ -4399,6 +4517,8 @@ function narabeBoardHTML() {
   return html;
 }
 async function narabePickTiles(pi, maxN, instruction) {
+  // ネット対戦: リモート席の牌選びはゲストへ 'pick' プロンプトとして転送する (自分の手牌から選ぶ前提)
+  if (typeof NET !== 'undefined' && NET && NET.mode === 'host' && pi !== 0) return netPromptPick(pi, maxN, instruction);
   var p = G.players[pi];
   var selected = [];
   G.pickWait = true; // 牌選択中: Enter=牌の選択 (必要枚数が揃ったら決定) / Space=決定 / Esc=やめる
@@ -4429,6 +4549,12 @@ async function narabePickTiles(pi, maxN, instruction) {
   }
 }
 function narabeExchangePickTile() {
+  // ネット対戦: 対象席 (NET.promptSeat) がリモートなら 'put' プロンプトとして転送する
+  if (typeof NET !== 'undefined' && NET && NET.mode === 'host' && NET.promptSeat != null) {
+    var nsp = NET.promptSeat; NET.promptSeat = null;
+    if (nsp !== 0) return netPromptPut51(nsp, [{ label: '交換しない', value: 'no', cls: 'sub' }], function () { return { button: 'no' }; })
+      .then(function (r) { return (r && r.tileId !== undefined && r.tileId !== null) ? r.tileId : null; });
+  }
   return new Promise(function (resolve) {
     log('交換する手牌を1枚選んでください（交換しない場合はボタン）');
     renderAll();
@@ -4504,6 +4630,7 @@ async function narabeResolveMeldRon(pi, tiles) {
     if (!bestEv) continue;
     if (q.isHuman) {
       renderAll();
+      NET.promptSeat = qi;
       var ok = await waitHuman([{ label: 'ロン！ ' + hanText(bestEv) + ' ' + bestEv.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
       if (!ok) { if (q.riichi) q.riichiFuriten = true; else q.tempFuriten = true; continue; }
     }
@@ -4584,6 +4711,7 @@ async function narabeJokerDiscard(pi, jokerTile) {
   var targetPi;
   if (p.isHuman) {
     var opts = G.players.map(function (_, x) { return x; }).filter(function (x) { return x !== pi; }).map(function (x) { return { label: G.players[x].name + ' の河へ', value: x }; });
+    NET.promptSeat = pi;
     targetPi = await modalChoice('<h3>ジョーカーを誰の河に捨てますか？</h3>', opts);
     if (targetPi === null || targetPi === undefined) targetPi = (pi + 1) % NP();
   } else targetPi = (pi + 1) % NP();
@@ -4592,6 +4720,7 @@ async function narabeJokerDiscard(pi, jokerTile) {
   log(p.name + ' はジョーカーを ' + target.name + ' の河に捨てた');
   var giveTile = null;
   if (target.isHuman) {
+    NET.promptSeat = targetPi; // 交換牌を選ぶのは対象プレイヤー本人
     var tid = await narabeExchangePickTile();
     if (tid !== null && tid !== undefined) giveTile = target.hand.find(function (t) { return t.id === tid; }) || null;
   } else {
@@ -4747,6 +4876,7 @@ async function narabeChooseAction(pi) {
     return { kind: 'discard' };
   }
   if (!singles.length && !melds.length && !jokers.length) return { kind: 'discard' };
+  NET.promptSeat = pi;
   var choice = await modalChoice('<h3>どうしますか？</h3>', [
     { label: '普通に捨てる', value: 'discard' },
     singles.length ? { label: '場に1枚並べる', value: 'place' } : null,
@@ -4770,6 +4900,7 @@ async function narabeChooseAction(pi) {
   }
   if (choice === 'jokerCombo') {
     var comboOpts2 = combos.map(function (c, ix) { return { label: narabeComboLabel(c), value: ix }; });
+    NET.promptSeat = pi;
     var cIx = await modalChoice('<h3>ジョーカーと何を並べますか？</h3>', comboOpts2);
     if (cIx === null || cIx === undefined) return narabeChooseAction(pi);
     var cc = combos[Number(cIx)];
@@ -4798,8 +4929,9 @@ async function playLoopNarabe() {
     if (res === 'kan') { needsDraw = true; rinshanDraw = true; continue; }
     var act = null, dInfo = null;
     if (forceDiscard) { act = { kind: 'discard' }; forceDiscard = false; }
-    else if (p.isHuman && !p.riichi) {
-      // 人間: モーダルで聞かず、クリック連動 (並べられる牌は金色表示、選んだ時だけ選択肢)
+    else if (p.isHuman && !p.riichi && !(NET.mode === 'host' && pi !== 0)) {
+      // 人間: モーダルで聞かず、クリック連動 (並べられる牌は金色表示、選んだ時だけ選択肢)。
+      // ネット対戦のリモート席はクリック連動が使えないため、下の narabeChooseAction (モーダル経由) に回す
       narabeInstallHook(pi);
       dInfo = await getDiscard(pi);
       narabeUninstallHook();
@@ -4901,6 +5033,7 @@ async function bridgeDraft(starter) {
     if (p.riichi) kept = riichiDraftKeep(p);
     else if (p.isHuman) {
       log('ドラフト: 欲しい牌を1枚選んでください');
+      NET.promptSeat = pi;
       var pick = await waitCenterOrButton51([]);
       kept = pick.tile;
     } else {
@@ -5059,6 +5192,7 @@ async function chainSwapWithPartner(pi, giveTile) {
     log('パートナーへ渡す牌を1枚選んでください');
     G.pendingDiscard = { restrict: null };
     renderAll();
+    NET.promptSeat = qi; // 返す牌を選ぶのはパートナー本人
     var pick = await waitPutOrButton51([]);
     G.pendingDiscard = null;
     back = partner.hand.find(function (t) { return t.id === pick.tileId; });
@@ -5085,6 +5219,7 @@ async function chainExchange(pi) {
     log('パートナーと交換する牌を1枚選んでください');
     G.pendingDiscard = { restrict: null };
     renderAll();
+    NET.promptSeat = pi;
     var pick = await waitPutOrButton51([]);
     G.pendingDiscard = null;
     give = p.hand.find(function (t) { return t.id === pick.tileId; });
@@ -5105,6 +5240,7 @@ async function chainRiichiTurn(pi) {
   if (ev) {
     var declare = true;
     if (p.isHuman) {
+      NET.promptSeat = pi;
       var ans = await modalChoice('<h3>ツモ！</h3><p>' + hanText(ev) + ' ' + ev.fu + '符</p>',
         [{ label: 'ツモする', value: 'y' }, { label: '交換して続ける', value: 'n' }]);
       declare = ans === 'y';
@@ -5140,6 +5276,7 @@ async function chainAskDeclaration(win) {
         '<p>パートナーと相談して決めてください: チェインしますか？</p>' +
         '<p>' + myInfo + '。チェインすると ' + p.name + ' は抜けて、あなたの上がりで合算されます。</p>';
     }
+    NET.promptSeat = p.isHuman ? win.pi : chainPartner(win.pi); // 決めるのは勝者本人か (CPU勝者なら) パートナー
     var ans = await modalChoice(head,
       [{ label: 'チェイン（続行）', value: 'chain' }, { label: 'ストップ（局終了）', value: 'stop' }]);
     return ans === 'chain' ? 'chain' : 'stop';
@@ -5151,6 +5288,8 @@ async function chainAskRejection(win, decl) {
   var oppTeam = [0, 1, 2, 3].filter(function (i) { return i % 2 !== win.pi % 2; });
   var winner = G.players[win.pi];
   if (oppTeam.some(function (i) { return G.players[i].isHuman; })) {
+    // ネット対戦で相手チームに人間が複数いる場合は、ローカル席を優先し、次に先の席が決める
+    NET.promptSeat = oppTeam.indexOf(0) >= 0 && G.players[0].isHuman ? 0 : oppTeam.find(function (i) { return G.players[i].isHuman; });
     var ans = await modalChoice('<h3>相手チームの宣言: ' + (decl === 'chain' ? 'チェイン' : 'ストップ') + '</h3><p>' +
       winner.name + ' の ' + hanText(win.ev) + ' ' + win.ev.fu + '符。却下にはチーム2人がそれぞれ2000点を ' + winner.name + ' に支払います。</p>',
       [{ label: '却下する（各2000点）', value: 'reject' }, { label: '認める', value: 'accept' }]);
@@ -5416,6 +5555,7 @@ async function unoResolveRons(discarderPi, tiles) {
     }
     if (!bestEv) continue;
     if (q.isHuman) {
+      NET.promptSeat = qi;
       var ans = await modalChoice('<h3>ロンできます</h3><p>' + hanText(bestEv) + ' ' + bestEv.fu + '符（' + MJ.TILE_NAMES[bestType] + '）</p>',
         [{ label: 'ロン！', value: 'y' }, { label: 'パス', value: 'n' }]);
       if (ans !== 'y') { if (q.riichi) q.riichiFuriten = true; else q.tempFuriten = true; continue; }
@@ -5439,6 +5579,7 @@ function unoWinEval(pi) {
 async function unoChooseSuit(pi) {
   var p = G.players[pi];
   if (p.isHuman) {
+    NET.promptSeat = pi;
     var ans = await modalChoice('<h3>ワイルド</h3><p>次の牌の種類を選んでください</p>',
       [{ label: '萬子', value: 0 }, { label: '筒子', value: 1 }, { label: '索子', value: 2 }]);
     return Number(ans) || 0;
@@ -5455,6 +5596,7 @@ async function unoPickBatch(pi, firstTile) {
     var rest = p.hand.filter(function (t) { return chosen.indexOf(t) < 0 && unoBatchKey(t) === key; });
     G.pendingDiscard = { restrict: rest.length ? rest.map(function (t) { return t.id; }) : [-1] };
     renderAll();
+    NET.promptSeat = pi;
     var pick = await waitPutOrButton51([
       { label: 'この' + chosen.length + '枚で捨てる', value: 'go' },
       { label: 'やめる', value: 'cancel' }
@@ -5475,6 +5617,7 @@ async function unoHumanTurn(pi) {
     renderAll();
     var btns = [{ label: 'ツモする（1枚引く）', value: 'draw' }];
     if (!p.riichi && p.menzen && p.score >= 1000) btns.push({ label: riichiMode ? '立直モード: ON' : '立直して捨てる', value: 'riichimode' });
+    NET.promptSeat = pi;
     var pick = await waitPutOrButton51(btns);
     G.pendingDiscard = null;
     if (pick.button === 'draw') return { action: 'draw' };
@@ -5532,6 +5675,7 @@ async function unoDoDiscard(pi, tiles, declareRiichi) {
   }
   if (p.hand.length === 1) {
     if (p.isHuman) {
+      NET.promptSeat = pi;
       var a = await modalChoice('<h3>手牌が1枚になりました</h3>', [{ label: 'UNOを宣言する', value: 'y' }, { label: '宣言しない', value: 'n' }]);
       p.unoDeclared = a === 'y';
     } else p.unoDeclared = true;
@@ -5569,6 +5713,7 @@ async function unoPendingAction(pi) {
   if (p.isHuman) {
     G.pendingDiscard = { restrict: counters.map(function (t) { return t.id; }) };
     renderAll();
+    NET.promptSeat = pi;
     var pick = await waitPutOrButton51([{ label: need + '枚引く', value: 'drawcards' }]);
     G.pendingDiscard = null;
     if (pick.button === 'drawcards' || !pick.tileId) return drawCards();
@@ -5614,6 +5759,7 @@ async function unoTurn(pi) {
     if (ev) {
       var declare = true;
       if (p.isHuman) {
+        NET.promptSeat = pi;
         var ans = await modalChoice('<h3>ツモ！</h3><p>' + hanText(ev) + ' ' + ev.fu + '符</p>',
           [{ label: 'ツモする', value: 'y' }, { label: 'やめる', value: 'n' }]);
         declare = ans === 'y';
@@ -5674,6 +5820,7 @@ async function povertyDeclareWant(tycoonPi, allowHaku) {
       opts.push({ label: MJ.TILE_NAMES[t], value: t });
     }
     opts.push({ label: 'おまかせ（ドラに近い牌）', value: -1 });
+    NET.promptSeat = tycoonPi;
     var ans = await modalChoice('<h3>大富豪の宣言</h3><p>欲しい牌を1種選んでください（宣言は一度だけ、全員に適用されます）</p>', opts);
     return ans === -1 || ans === null || ans === undefined ? null : Number(ans);
   }
@@ -5706,6 +5853,7 @@ async function povertySwap(t, g, count, want) {
     renderAll();
     for (var i = 0; i < count; i++) {
       log('大富豪: ' + giver.name + ' へ渡す牌を選んでください（' + (i + 1) + '枚目/全' + count + '枚、受け取る牌はまだ見えません）');
+      NET.promptSeat = t; // 渡す牌を選ぶのは大富豪本人 (受け取る牌はまだ誰の手にもない=盲目が保たれる)
       var pick = await waitPutOrButton51([]);
       var bt = tycoon.hand.find(function (x) { return x.id === pick.tileId; });
       if (bt) { tycoon.hand.splice(tycoon.hand.indexOf(bt), 1); backTiles.push(bt); }
@@ -5890,6 +6038,11 @@ function flush51(pi) {
   return 'ok';
 }
 function waitCenterOrButton51(buttons) {
+  // ネット対戦: 対象席 (NET.promptSeat) がリモートなら 'center' プロンプトとして転送する
+  if (typeof NET !== 'undefined' && NET && NET.mode === 'host' && NET.promptSeat != null) {
+    var nsc = NET.promptSeat; NET.promptSeat = null;
+    if (nsc !== 0) return netPromptCenter51(nsc, buttons);
+  }
   return new Promise(function (resolve) {
     var prev = G.pending;
     G.centerWait = { resolve: function (tile) { G.centerWait = null; if (G.pending && G.pending._c51) G.pending = prev; resolve({ tile: tile }); } };
@@ -5900,6 +6053,11 @@ function waitCenterOrButton51(buttons) {
   });
 }
 function waitPutOrButton51(buttons) {
+  // ネット対戦: 対象席 (NET.promptSeat) がリモートなら 'put' プロンプトとして転送する
+  if (typeof NET !== 'undefined' && NET && NET.mode === 'host' && NET.promptSeat != null) {
+    var nspu = NET.promptSeat; NET.promptSeat = null;
+    if (nspu !== 0) return netPromptPut51(nspu, buttons, null);
+  }
   return new Promise(function (resolve) {
     var prev = G.pending;
     G.tileKeyWait = true; // 牌キーが優先 (数字=牌、ボタンは文字キー) (bd指摘 2026-11-21)
@@ -5923,6 +6081,7 @@ async function postCall51(outcome, outTile) {
   if (cp.isHuman) {
     log(cp.name + ' は鳴いたので、手牌から1枚を中央へ補充してください');
     while (true) {
+      NET.promptSeat = ci;
       var pick = await waitPutOrButton51([]);
       rep = cp.hand.find(function (t) { return t.id === pick.tileId; }) || null;
       if (rep && kuiPC && kuiPC.indexOf(rep.t) >= 0) { log('喰い替えのため ' + MJ.TILE_NAMES[rep.t] + ' は出せません'); rep = null; continue; }
@@ -5973,7 +6132,7 @@ async function riichiTurn51(pi) {
       var evk = evalWin(p, G.lastDrawn ? G.lastDrawn.t : null, { tsumo: true, rinshan: true });
       if (evk) {
         var okk = true;
-        if (p.isHuman) okk = await waitHuman([{ label: 'ツモ！（嶺上） ' + hanText(evk) + ' ' + evk.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
+        if (p.isHuman) { NET.promptSeat = pi; okk = await waitHuman([{ label: 'ツモ！（嶺上） ' + hanText(evk) + ' ' + evk.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]); }
         if (okk) { await doWinTsumo(pi, evk); return 'win'; }
         log(p.name + ' は嶺上の当たりを見逃した');
       }
@@ -5987,6 +6146,7 @@ async function riichiTurn51(pi) {
       p.hand.pop();
       if (ev) {
         if (p.isHuman) {
+          NET.promptSeat = pi;
           var ok = await waitHuman([{ label: 'ツモ！ ' + hanText(ev) + ' ' + ev.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
           if (!ok) { log(p.name + ' は中央の当たり牌を見逃した'); return {}; }
         }
@@ -6004,6 +6164,7 @@ async function riichiTurn51(pi) {
       if (p.isHuman) {
         var kb51 = kans51.map(function (k, i) { return { label: (k.kind === 'ankan' ? '暗槓 ' : '加槓 ') + MJ.TILE_NAMES[k.tile], value: i }; });
         kb51.push({ label: 'カンしない', value: 'none', cls: 'sub' });
+        NET.promptSeat = pi;
         var ka51 = await waitHuman(kb51);
         doKan51 = ka51 !== 'none' && ka51 !== null && ka51 !== undefined;
         if (doKan51) kans51 = [kans51[Number(ka51)]];
@@ -6030,6 +6191,7 @@ async function riichiTurn51(pi) {
     var vt;
     if (p.isHuman) {
       log('リーチ中: 中央の牌を1枚「捨てたもの」として指定してください');
+      NET.promptSeat = pi;
       var pick = await waitCenterOrButton51(canFlush ? [{ label: '中央の牌を流す', value: 'flush' }] : []);
       if (pick.button === 'flush') {
         var fr = flush51(pi);
@@ -6060,6 +6222,7 @@ async function humanExchange51(pi) {
     var buttons = [];
     if (canFlush) buttons.push({ label: '中央の牌を流す', value: 'flush' });
     log('中央の牌を1枚選んでください（交換）');
+    NET.promptSeat = pi;
     var take = await waitCenterOrButton51(buttons);
     if (take.button === 'flush') {
       var fr = flush51(pi);
@@ -6078,6 +6241,7 @@ async function humanExchange51(pi) {
       kans.forEach(function (k, i) { btns.push({ label: (k.kind === 'ankan' ? '暗槓 ' : '加槓 ') + MJ.TILE_NAMES[k.tile], value: 'kan' + i }); });
       if (canKita(p)) btns.push({ label: '北を抜く（ドラ+1）', value: 'kita' });
       log('出す牌を手牌から選んでください');
+      NET.promptSeat = pi;
       var pick = await waitPutOrButton51(btns);
       if (pick.button === 'tsumo' && ev) { await doWinTsumo(pi, ev); return 'win'; }
       if (pick.button && pick.button.indexOf('kan') === 0) {
@@ -6178,6 +6342,7 @@ async function turn51(pi) {
   if (p.menzen && playerShanten(p) === 0 && p.score >= 1000) {
     var declare = false;
     if (p.isHuman) {
+      NET.promptSeat = pi;
       var rc = await waitHuman([{ label: 'リーチする（51では-1翻）', value: true }, { label: 'リーチしない', value: false, cls: 'sub' }]);
       declare = !!rc;
     } else declare = Math.random() < 0.7;
@@ -6401,6 +6566,7 @@ async function sashiPostDraw(pi) {
     kans.forEach(function (k, i) { btns.push({ label: (k.kind === 'ankan' ? '暗槓 ' : '加槓 ') + MJ.TILE_NAMES[k.tile], value: 'kan' + i }); });
     if (!btns.length) return null;
     btns.push({ label: 'そのまま（捨てる）', value: 'none', cls: 'sub' });
+    NET.promptSeat = pi;
     var ans = await waitHuman(btns);
     if (ans === 'tsumo' && ev0) return sashiDeclareWin(pi, used, { tsumo: true });
     if (typeof ans === 'string' && ans.indexOf('kan') === 0) {
@@ -6478,7 +6644,10 @@ async function sashiGetDiscard(pi) {
     } else if (mode.riichi) restrict = riichiIds;
     G.pendingDiscard = { restrict: restrict };
     renderAll();
-    var picked = await new Promise(function (resolve) {
+    var picked;
+    if (NET.mode === 'host' && pi !== 0) {
+      picked = await netPromptDiscard(pi, buttons, restrict);
+    } else picked = await new Promise(function (resolve) {
       G.discardWait = { resolve: resolve };
       if (buttons.length) {
         var prevPending = G.pending;
@@ -6513,6 +6682,7 @@ async function sashiDiscardWindow(pi, dInfo) {
         var take = false;
         if (q.isHuman) {
           renderAll();
+          NET.promptSeat = qi;
           take = await waitHuman([{ label: 'ロン！（' + (q.winGroups.length + 1) + '組目）' + hanText(ev) + ' ' + ev.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
         } else take = true;
         if (take) {
@@ -6538,11 +6708,12 @@ async function sashiDiscardWindow(pi, dInfo) {
       if (btns.length) {
         btns.push({ label: 'パス', value: 'pass', cls: 'sub' });
         renderAll();
+        NET.promptSeat = qi;
         var ans = await waitHuman(btns);
         if (ans === 'pon' || ans === 'kan') doCall = { kind: ans, seq: null };
         else if (ans === 'chi') {
           var seq = seqs[0];
-          if (seqs.length > 1) seq = await modalChoice('<h3>チーの形を選んでください</h3>', seqs.map(function (sv) { return { label: MJ.TILE_NAMES[sv] + MJ.TILE_NAMES[sv + 1] + MJ.TILE_NAMES[sv + 2], value: sv }; }));
+          if (seqs.length > 1) { NET.promptSeat = qi; seq = await modalChoice('<h3>チーの形を選んでください</h3>', seqs.map(function (sv) { return { label: MJ.TILE_NAMES[sv] + MJ.TILE_NAMES[sv + 1] + MJ.TILE_NAMES[sv + 2], value: sv }; })); }
           doCall = { kind: 'chi', seq: seq };
         }
       }
@@ -6936,6 +7107,7 @@ async function finishHand(result) {
   var winners = result.multiWinners || [result.winner];
   var dealerWon = winners.indexOf(G.dealer) >= 0;
   showModal('<div id="modal-result">' + result.html + '</div><div class="modal-btns"><button id="btn-board-view" class="sub">場を見る</button><button id="btn-next-hand">次へ</button></div>');
+  netBroadcastModal($('modal-box').innerHTML);
   $('btn-board-view').addEventListener('click', toggleBoardView);
   await new Promise(function (resolve) { $('btn-next-hand').addEventListener('click', function () { hideModal(); resolve(); }); });
   if (checkMatchEndByScore()) return;
@@ -6995,6 +7167,7 @@ async function doRyukyoku() {
   log('流局（テンパイ ' + nTen + '人）');
   renderAll();
   showModal(html + '<div class="modal-btns"><button id="btn-next-hand">次へ</button></div>');
+  netBroadcastModal($('modal-box').innerHTML);
   await new Promise(function (resolve) { $('btn-next-hand').addEventListener('click', function () { hideModal(); resolve(); }); });
   if (checkMatchEndByScore()) return;
   G.honba++;
@@ -7068,6 +7241,7 @@ function endMatch(reason) {
   }
   showModal('<h3>対戦終了' + (reason ? '（' + reason + '）' : '') + '</h3><table class="result">' + rows + '</table>' + teamHtml +
     '<div class="modal-btns"><button onclick="hideModal();document.getElementById(\'settings-panel\').scrollIntoView();">設定に戻る</button></div>');
+  netBroadcastModal($('modal-box').innerHTML);
   log('対戦終了: ' + (reason || ''));
   renderAll();
 }
@@ -7464,6 +7638,642 @@ function doubtBtnEvent(e) {
 document.addEventListener('pointerdown', doubtBtnEvent);
 document.addEventListener('click', doubtBtnEvent);
 bindSettings();
+
+/* =====================================================================
+   ネットワーク対戦 (ステージ1: スタンダード系のみ)
+   中継 (Cloudflare Workers + Durable Objects / PartyServer) はゲームを
+   知らない。対局はホストのブラウザが回し、ゲストはスナップショット描画と
+   プロンプト回答だけを行う (設計: ~/workspace/mahjong/net/DESIGN.md)。
+   NET.mode: 'off' (通常ローカル) / 'host' / 'guest'
+   ===================================================================== */
+var NET_RELAY_URL = 'wss://hensoku-mahjong-relay.abcd-hide.workers.dev';
+try { NET_RELAY_URL = localStorage.getItem('hensokuRelayUrl') || NET_RELAY_URL; } catch (e) {}
+var NET = {
+  mode: 'off', name: '', token: '', seat: null, tableId: null, tableSeats: 4,
+  lobbyWs: null, tableWs: null, tables: [],
+  seats: {},          // host側: seat -> 'local' | 'remote' | 'cpu'
+  guests: {},         // host側: seat -> {name, connected}
+  promptSeat: null,   // 次の waitHuman/modalChoice の対象席 (呼び出し側が直前にセット)
+  promptSeq: 1,
+  pendingPrompts: {}, // host側: id -> {seat, resolve, defaultFn}
+  lastSnapJson: {},   // host側: seat -> 最後に送った snap の JSON (重複送信抑制)
+  started: false,
+  guestPrompt: null,  // guest側: 現在のプロンプト
+  guestInfoModal: false,
+  roster: null        // guest側: ホストから受け取った席/名前一覧 (待合室表示用)
+};
+function netSendLobby(obj) { try { if (NET.lobbyWs && NET.lobbyWs.readyState === 1) NET.lobbyWs.send(JSON.stringify(obj)); } catch (e) {} }
+function netSendTable(obj) { try { if (NET.tableWs && NET.tableWs.readyState === 1) NET.tableWs.send(JSON.stringify(obj)); } catch (e) {} }
+function netSendTableRaw(str) { try { if (NET.tableWs && NET.tableWs.readyState === 1) NET.tableWs.send(str); } catch (e) {} }
+function netSeatConnected(seat) {
+  return NET.seats[seat] === 'remote' && !!NET.guests[seat] && !!NET.guests[seat].connected && !!NET.tableWs && NET.tableWs.readyState === 1;
+}
+function netToken() {
+  try {
+    var t = localStorage.getItem('hensokuNetToken');
+    if (!t) { t = 'tok-' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('hensokuNetToken', t); }
+    return t;
+  } catch (e) { return 'tok-eph-' + Math.random().toString(36).slice(2); }
+}
+
+/* ---------- プロンプト転送 (ホスト側) ---------- */
+function netDefaultButtonValue(buttons) {
+  for (var i = 0; i < buttons.length; i++) if (/パス|見送|しない|やめる|キャンセル|抜かない|使わない|流さない|鳴かない/.test(buttons[i].label || '')) return buttons[i].value;
+  // ラベルで拾えない場合の安全な値 (そのまま/通常捨て/見送り系)。積極的な選択 (ジョーカー捨て等) を既定にしない
+  for (var k = 0; k < buttons.length; k++) { var sv = buttons[k].value; if (sv === 'pass' || sv === 'none' || sv === 'cancel' || sv === 'no' || sv === 'discard' || sv === false) return sv; }
+  for (var j = buttons.length - 1; j >= 0; j--) if (buttons[j].cls === 'sub') return buttons[j].value;
+  return buttons.length ? buttons[buttons.length - 1].value : null;
+}
+function netPromptRaw(seat, kind, payload, defaultFn) {
+  return new Promise(function (resolve) {
+    if (!netSeatConnected(seat)) { resolve({ netDefault: true, value: defaultFn() }); return; }
+    var id = NET.promptSeq++;
+    NET.pendingPrompts[id] = { seat: seat, resolve: resolve, defaultFn: defaultFn };
+    var msg = { t: 'prompt', id: id, seat: seat, kind: kind };
+    Object.keys(payload || {}).forEach(function (k) { msg[k] = payload[k]; });
+    netSendTable(msg);
+  });
+}
+async function netPromptButtons(seat, buttons) {
+  while (true) {
+    var r = await netPromptRaw(seat, 'buttons', { buttons: buttons }, function () { return netDefaultButtonValue(buttons); });
+    if (r.netDefault) return r.value;
+    if (buttons.some(function (b) { return b.value === r.value; })) return r.value;
+    // 候補にない回答は捨てて再送する
+  }
+}
+async function netPromptModal(seat, html, buttons) {
+  while (true) {
+    var r = await netPromptRaw(seat, 'modal', { html: html, buttons: buttons }, function () { return netDefaultButtonValue(buttons); });
+    if (r.netDefault) return r.value;
+    if (buttons.some(function (b) { return b.value === r.value; })) return r.value;
+  }
+}
+async function netPromptDiscard(pi, buttons, restrict) {
+  while (true) {
+    if (!netSeatConnected(pi)) { var plan = cpuPlanDiscard(pi); return { tileId: plan.tileId }; }
+    var r = await netPromptRaw(pi, 'discard', { buttons: buttons, restrict: restrict }, function () { var pl = cpuPlanDiscard(pi); return { tileId: pl.tileId }; });
+    if (r.netDefault) return r.value;
+    var v = r.value;
+    if (v && v.button !== undefined) {
+      if (buttons.some(function (b) { return b.value === v.button; })) return { button: v.button };
+      continue;
+    }
+    if (v && v.tileId !== undefined && v.tileId !== null) {
+      var p = G.players[pi];
+      var tile = p.hand.find(function (t) { return t.id === v.tileId; });
+      if (tile && (!restrict || restrict.indexOf(v.tileId) >= 0)) return { tileId: v.tileId };
+      continue; // 手牌にない/制限違反の回答は捨てて再送する
+    }
+  }
+}
+
+/* 牌選びプロンプト (kind 'pick'): ゲストは自分の表示手牌から選び、牌idの配列を返す。
+   ホストは「本人の手牌に実在するか・重複なし・上限枚数」を検証し、不正なら再送する。
+   切断時の既定はキャンセル (null) — ローカルの「やめる」と同じ扱いになる */
+async function netPromptPick(seat, maxN, instruction) {
+  var p = G.players[seat];
+  if (!p) return null;
+  while (true) {
+    var ids = p.hand.map(function (t) { return t.id; });
+    var r = await netPromptRaw(seat, 'pick', { ids: ids, maxN: maxN, instruction: instruction || '' }, function () { return null; });
+    if (r.netDefault) return null;
+    var v = r.value;
+    if (!v || !v.tileIds) return null; // キャンセル
+    if (!Array.isArray(v.tileIds) || v.tileIds.length > maxN) continue;
+    var seen = {}, tiles = [], okPick = true;
+    for (var i = 0; i < v.tileIds.length; i++) {
+      var tid = v.tileIds[i];
+      if (seen[tid]) { okPick = false; break; }
+      seen[tid] = true;
+      var tt = p.hand.find(function (x) { return x.id === tid; });
+      if (!tt) { okPick = false; break; }
+      tiles.push(tt);
+    }
+    if (!okPick) continue;
+    return tiles;
+  }
+}
+function netCenterTilesNow() { return (S.variant === 'fiftyone' ? G.center51 : G.draftBatch) || []; }
+/* 中央/ドラフト牌の選択プロンプト (kind 'center'): ゲストはスナップショット上の中央牌をクリックする */
+async function netPromptCenter51(seat, buttons) {
+  while (true) {
+    var r = await netPromptRaw(seat, 'center', { buttons: buttons }, function () {
+      var c = netCenterTilesNow();
+      return c.length ? { tileId: c[0].id } : { button: netDefaultButtonValue(buttons) };
+    });
+    var v = r.value || {};
+    if (v.button !== undefined && v.button !== null) {
+      if (r.netDefault || buttons.some(function (b) { return b.value === v.button; })) return { button: v.button };
+      continue;
+    }
+    var tile = netCenterTilesNow().find(function (t) { return t.id === v.tileId; });
+    if (tile) return { tile: tile };
+    if (r.netDefault) return { button: netDefaultButtonValue(buttons) };
+  }
+}
+/* 手牌から1枚出すプロンプト (kind 'put': exchangePut 相当)。制限 (G.pendingDiscard.restrict) も検証する */
+async function netPromptPut51(seat, buttons, defaultFn) {
+  var p = G.players[seat];
+  if (!p) return { button: netDefaultButtonValue(buttons || []) };
+  while (true) {
+    var restrict = (G.pendingDiscard && G.pendingDiscard.restrict) || null;
+    var r = await netPromptRaw(seat, 'put', { buttons: buttons, restrict: restrict }, defaultFn || function () {
+      var t = null;
+      try { t = cpuPassTile(p); } catch (e) {}
+      if (!t || (restrict && restrict.indexOf(t.id) < 0)) t = p.hand.find(function (x) { return !restrict || restrict.indexOf(x.id) >= 0; }) || p.hand[0];
+      return t ? { tileId: t.id } : { button: netDefaultButtonValue(buttons) };
+    });
+    var v = r.value || {};
+    if (v.button !== undefined && v.button !== null) {
+      if (r.netDefault || (buttons || []).some(function (b) { return b.value === v.button; })) return { button: v.button };
+      continue;
+    }
+    if (v.tileId !== undefined && v.tileId !== null) {
+      var tile = p.hand.find(function (t) { return t.id === v.tileId; });
+      if (tile && (!restrict || restrict.indexOf(v.tileId) >= 0)) return { tileId: v.tileId };
+      if (r.netDefault) return { tileId: p.hand.length ? p.hand[0].id : v.tileId };
+      continue;
+    }
+    if (r.netDefault) return v;
+  }
+}
+
+/* ---------- スナップショット (ホスト側): 回転+秘匿フィルタの単一関門 ---------- */
+function netCloneData(x) {
+  if (x === null || typeof x !== 'object') return (typeof x === 'function') ? undefined : x;
+  if (Array.isArray(x)) { var a = []; for (var i = 0; i < x.length; i++) { var v = netCloneData(x[i]); a.push(v === undefined ? null : v); } return a; }
+  var o = {};
+  Object.keys(x).forEach(function (k) { var v = netCloneData(x[k]); if (v !== undefined) o[k] = v; });
+  return o;
+}
+function netRotIdx(idx, seat, np) { return (typeof idx === 'number' && idx >= 0) ? (idx - seat + np) % np : idx; }
+function netSnapshotFor(seat) {
+  var np = G.players.length;
+  var snap = netCloneData(G);
+  // 回転: 受け取るゲストが players[0] になるよう並べ替え、席番号を持つフィールドを全部ずらす
+  var rot = [];
+  for (var i = 0; i < np; i++) rot.push(snap.players[(seat + i) % np]);
+  snap.players = rot;
+  ['dealer', 'current', 'draftStarter', 'exchStarter', 'justCalledPi', 'chainResumePi', 'napoleonStarter'].forEach(function (k) {
+    if (typeof snap[k] === 'number') snap[k] = netRotIdx(snap[k], seat, np);
+  });
+  if (snap.napoleon && typeof snap.napoleon.pi === 'number') snap.napoleon.pi = netRotIdx(snap.napoleon.pi, seat, np);
+  ['chainOut', 'bridgeNoRon'].forEach(function (k) {
+    if (Array.isArray(snap[k])) { var a = []; for (var j = 0; j < np; j++) a[j] = snap[k][(seat + j) % np]; snap[k] = a; }
+  });
+  if (snap.abilityPool) Object.keys(snap.abilityPool).forEach(function (k) { if (typeof snap.abilityPool[k] === 'number') snap.abilityPool[k] = netRotIdx(snap.abilityPool[k], seat, np); });
+  if (snap.shibari && typeof snap.shibari.untilPi === 'number') snap.shibari.untilPi = netRotIdx(snap.shibari.untilPi, seat, np);
+  if (Array.isArray(snap.pondDropQueue)) snap.pondDropQueue.forEach(function (e) { if (e && typeof e.owner === 'number') e.owner = netRotIdx(e.owner, seat, np); });
+  snap.players.forEach(function (p) {
+    (p.melds || []).forEach(function (m) {
+      if (typeof m.fromPi === 'number') m.fromPi = netRotIdx(m.fromPi, seat, np);
+      if (Array.isArray(m.ippatsuVictims)) m.ippatsuVictims = m.ippatsuVictims.map(function (v) { return netRotIdx(v, seat, np); });
+    });
+  });
+  // 待ち状態・関数は送らない (ゲスト側は自分のプロンプト状態を別に持つ)
+  snap.pending = null; snap.discardWait = null; snap.centerWait = null; snap.exchangePut = null;
+  snap.pickWait = null; snap.postDraw = null; snap.humanWin = null; snap.specialWin = null;
+  snap.keySel = null; snap.keySelLen = null;
+  // 秘匿: 山・王牌・槓ドラ予約・裏ドラ表示は枚数だけ。他人の手牌は種類を消す (idと枚数は保持)
+  var dummy = function (n) { var a = []; for (var d = 0; d < n; d++) a.push({ id: 0, t: -1, red: false, wild: false }); return a; };
+  snap.wall = dummy((G.wall || []).length);
+  snap.deadWall = dummy((G.deadWall || []).length);
+  snap.kanDoraQueue = dummy((G.kanDoraQueue || []).length);
+  snap.kanUraQueue = dummy((G.kanUraQueue || []).length);
+  snap.uraIndicators = dummy((G.uraIndicators || []).length);
+  var myIds = {};
+  snap.players[0].hand.forEach(function (t) { myIds[t.id] = true; });
+  snap.players.forEach(function (p, pi2) {
+    if (pi2 !== 0 && !p.openRiichi && !snap.over) {
+      // 並べのオープン済み牌は公開情報なので種類を残す (ローカルUIでも表向きに表示される)
+      p.hand = p.hand.map(function (t) {
+        if (p.openTileIds && p.openTileIds.indexOf(t.id) >= 0) return t;
+        return { id: t.id, t: -1, red: false, wild: false };
+      });
+    }
+    if (pi2 !== 0) {
+      (p.melds || []).forEach(function (m) {
+        if (m.hidden) m.tiles = m.tiles.map(function (t, ti) { return ti === 0 ? t : { id: t.id, t: -1, red: false, wild: false }; });
+        else if (m.kakanHidden) m.tiles = m.tiles.map(function (t) { return t.id === m.kakanTileId ? { id: t.id, t: -1, red: false, wild: false } : t; });
+      });
+    }
+  });
+  if (snap.lastDrawn && !myIds[snap.lastDrawn.id]) snap.lastDrawn = { id: snap.lastDrawn.id, t: -1, red: false, wild: false };
+  // ナポレオンの仕込み裏ドラと副官牌は秘密 (持ち主は副官牌の種類から推測できてしまう)。
+  // ナポレオン本人 (回転後の席0) にだけ実物を送る
+  if (snap.napoleon && snap.napoleon.pi !== 0) {
+    if (snap.napoleon.embedded) snap.napoleon.embedded = { id: snap.napoleon.embedded.id, t: -1, red: false, wild: false };
+    snap.napoleon.adjutantType = null;
+  }
+  return snap;
+}
+function netSendSnapshots(force) {
+  if (!G) return;
+  for (var seat = 1; seat < G.players.length; seat++) {
+    if (!netSeatConnected(seat)) continue;
+    var data;
+    try { data = netSnapshotFor(seat); } catch (e) { continue; }
+    var msg = JSON.stringify({ t: 'snap', seat: seat, data: data });
+    if (force || NET.lastSnapJson[seat] !== msg) { NET.lastSnapJson[seat] = msg; netSendTableRaw(msg); }
+  }
+}
+function netAfterRender() {
+  if (typeof NET === 'undefined' || !NET || NET.mode !== 'host' || !NET.started || !G) return;
+  netSendSnapshots(false);
+}
+function netBroadcastModal(html) {
+  if (typeof NET === 'undefined' || !NET || NET.mode !== 'host' || !NET.started) return;
+  var clean = String(html).replace(/<div class="modal-btns">[\s\S]*?<\/div>/, '');
+  var n = G ? G.players.length : NET.tableSeats;
+  for (var seat = 1; seat < n; seat++) {
+    if (netSeatConnected(seat)) netSendTable({ t: 'prompt', id: 0, seat: seat, kind: 'modal', html: clean, buttons: [] });
+  }
+}
+
+/* ---------- 接続・メッセージ処理 ---------- */
+function netConnectLobby() {
+  if (NET.lobbyWs && NET.lobbyWs.readyState <= 1) return;
+  var ws = new WebSocket(NET_RELAY_URL + '/parties/lobby/lobby-main');
+  NET.lobbyWs = ws;
+  ws.onopen = function () { netSendLobby({ t: 'hello', name: NET.name }); var st = $('net-lobby-status'); if (st) st.textContent = '接続中: ' + NET.name; };
+  ws.onmessage = function (ev) {
+    var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+    if (m.t === 'tables') { NET.tables = m.tables || []; netRenderTables(); }
+    else if (m.t === 'chat') netChatAppend('lobby', m.name, m.text);
+  };
+  ws.onclose = function () { if (NET.lobbyWs === ws) NET.lobbyWs = null; var st = $('net-lobby-status'); if (st) st.textContent = '未接続'; };
+}
+function netConnectTable(tableId, create) {
+  NET.tableId = tableId;
+  var ws = new WebSocket(NET_RELAY_URL + '/parties/table/' + encodeURIComponent(tableId));
+  NET.tableWs = ws;
+  ws.onopen = function () {
+    var msg = { t: 'join', name: NET.name, token: NET.token };
+    if (create) msg.create = create;
+    try { ws.send(JSON.stringify(msg)); } catch (e) {}
+  };
+  ws.onmessage = function (ev) {
+    var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+    netOnTableMsg(m);
+  };
+  ws.onclose = function () { if (NET.tableWs === ws) NET.tableWs = null; };
+}
+function netOnTableMsg(m) {
+  if (m.t === 'seated') {
+    NET.seat = m.seat;
+    if (m.seat === 0) NET.mode = 'host';
+    if (NET.mode === 'host') NET.seats[0] = 'local';
+    netRenderMembers();
+    return;
+  }
+  if (m.t === 'chat') {
+    // 制御チャット (接頭辞 \u0001): チャット欄には出さず、ホスト側の処理にだけ回す
+    if (typeof m.text === 'string' && m.text.charAt(0) === '\u0001') { netOnControlChat(m); return; }
+    netChatAppend('table', m.name, m.text); return;
+  }
+  if (NET.mode === 'host') netHostOnTableMsg(m); else netGuestOnTableMsg(m);
+}
+/* ゲストからの制御チャット: 現在はダウトボタンの依頼 (D:<オーナー席>:<メルド番号>) のみ。
+   中継は発言者名を接続状態から付けるので、ホストは名前→席で依頼者を特定する
+   (同名ゲストが複数いる場合は最初に一致した席になる点に注意) */
+function netOnControlChat(m) {
+  if (NET.mode !== 'host') return;
+  var mm = /^D:(\d+):(\d+)$/.exec(String(m.text || '').slice(1));
+  if (!mm) return;
+  var seat = null;
+  Object.keys(NET.guests).forEach(function (k) {
+    if (seat === null && NET.guests[k].connected && NET.guests[k].name === m.name) seat = Number(k);
+  });
+  if (seat === null) return;
+  netHostDoubtRequest(seat, Number(mm[1]), Number(mm[2]));
+}
+function netHostDoubtRequest(seat, ownerPi, meldIdx) {
+  if (!G || G.over || ownerPi === seat) return;
+  var owner = G.players[ownerPi];
+  var meld = owner && owner.melds[meldIdx];
+  if (!meld || (!meld.hidden && !meld.kakanHidden)) return;
+  // その席の即ダウト窓が開いている最中なら、窓の選択として処理する
+  if (G.immediateDoubt && G.immediateDoubt.meld === meld && G.immediateDoubt.qi === seat) {
+    var im = G.immediateDoubt;
+    G.immediateDoubt = null;
+    im.resolve(true);
+    return;
+  }
+  doubtResolveMeld(seat, ownerPi, meld, false);
+}
+/* 待合室の席/名前一覧をゲストへ送る。中継が転送する host→'prompt' (席指定) を流用し、
+   kind 'roster' は回答不要の通知として扱う (ゲスト側で振り分ける) */
+function netSendRoster() {
+  if (NET.mode !== 'host') return;
+  var n = NET.tableSeats || 4;
+  var seats = [];
+  for (var s = 0; s < n; s++) {
+    if (s === 0) seats.push({ seat: 0, name: NET.name || 'ホスト', connected: true });
+    else if (NET.guests[s] && NET.guests[s].name) seats.push({ seat: s, name: NET.guests[s].name, connected: !!NET.guests[s].connected });
+    else seats.push({ seat: s, name: '空席（CPU）', connected: false, cpu: true });
+  }
+  for (var g = 1; g < n; g++) {
+    if (netSeatConnected(g)) netSendTable({ t: 'prompt', id: 0, seat: g, kind: 'roster', seats: seats });
+  }
+}
+/* ホスト側 */
+function netHostOnTableMsg(m) {
+  if (m.t === 'guest') { netHostOnGuestEvent(m); return; }
+  if (m.t === 'answer') {
+    var e = NET.pendingPrompts[m.id];
+    if (e) { delete NET.pendingPrompts[m.id]; e.resolve({ value: m.value }); }
+    return;
+  }
+}
+function netHostOnGuestEvent(m) {
+  var seat = m.seat;
+  if (m.event === 'join' || m.event === 'reconnect') {
+    NET.guests[seat] = { name: m.name, connected: true };
+    NET.seats[seat] = 'remote';
+    if (NET.started && G && G.players[seat]) {
+      G.players[seat].isHuman = true;
+      G.players[seat].name = m.name;
+      NET.lastSnapJson[seat] = null;
+      netSendTable({ t: 'start', settings: JSON.parse(JSON.stringify(S)) });
+      netSendSnapshots(true);
+      renderAll();
+    }
+  } else if (m.event === 'disconnect') {
+    netHostGuestDown(seat);
+  } else if (m.event === 'leave') {
+    if (!NET.started) { delete NET.guests[seat]; NET.seats[seat] = 'cpu'; if (NET.guests[seat]) NET.guests[seat].connected = false; }
+    else netHostGuestDown(seat);
+  }
+  netRenderMembers();
+  netSendRoster();
+}
+function netHostGuestDown(seat) {
+  if (NET.guests[seat]) NET.guests[seat].connected = false;
+  if (NET.seats[seat] === 'remote') NET.seats[seat] = 'cpu';
+  if (G && G.players[seat]) G.players[seat].isHuman = false;
+  // その席宛の未回答プロンプトはデフォルト回答で解決する (対局を止めない)
+  Object.keys(NET.pendingPrompts).forEach(function (id) {
+    var e = NET.pendingPrompts[id];
+    if (e.seat === seat) { delete NET.pendingPrompts[id]; e.resolve({ netDefault: true, value: e.defaultFn() }); }
+  });
+  netRenderMembers();
+}
+function netHostStart() {
+  if (NET.mode !== 'host' || !NET.tableWs) return;
+  var seats = NET.tableSeats || 4;
+  S.playerCount = seats;
+  var sel = $('set-players'); if (sel) sel.value = String(seats);
+  NET.started = true;
+  NET.lastSnapJson = {};
+  netSendTable({ t: 'start', settings: JSON.parse(JSON.stringify(S)) });
+  startMatch();
+  for (var i = 0; i < G.players.length; i++) {
+    var p = G.players[i];
+    if (i === 0) { p.name = NET.name || 'あなた'; p.isHuman = true; NET.seats[0] = 'local'; }
+    else if (NET.guests[i] && NET.guests[i].name) { p.name = NET.guests[i].name; p.isHuman = (NET.seats[i] === 'remote'); }
+    else { p.name = 'CPU ' + i; p.isHuman = false; NET.seats[i] = 'cpu'; }
+  }
+  $('net-panel').classList.add('hidden');
+  var mc0 = $('net-match-chat'); if (mc0) mc0.classList.remove('hidden');
+  netSendRoster();
+  renderAll();
+}
+/* ゲスト側 */
+function netGuestOnTableMsg(m) {
+  if (m.t === 'start') { netGuestStart(m); return; }
+  if (m.t === 'snap') {
+    if (!m.data) return;
+    G = m.data;
+    if (NET.guestInfoModal) { hideModal(); NET.guestInfoModal = false; }
+    renderAll();
+    netGuestApplyPrompt();
+    return;
+  }
+  if (m.t === 'prompt') { netGuestOnPrompt(m); return; }
+  if (m.t === 'speak') { speakCall(m.text); return; }
+  if (m.t === 'hostLeft') {
+    NET.started = false;
+    showModal('<h3>ホストが退出しました</h3><p>この卓の対局は終了しました。</p><div class="modal-btns"><button id="btn-net-close2">閉じる</button></div>');
+    var b2 = $('btn-net-close2'); if (b2) b2.addEventListener('click', hideModal);
+    return;
+  }
+}
+function netGuestStart(m) {
+  NET.mode = 'guest';
+  NET.started = true;
+  if (m.settings) Object.keys(m.settings).forEach(function (k) { S[k] = m.settings[k]; });
+  $('settings-panel').classList.add('hidden');
+  $('net-panel').classList.add('hidden');
+  var mc1 = $('net-match-chat'); if (mc1) mc1.classList.remove('hidden');
+  document.body.classList.toggle('variant-sashi', S.variant === 'sashi');
+}
+function netGuestOnPrompt(msg) {
+  if (msg.kind === 'roster') {
+    // 待合室の席/名前一覧 (回答不要の通知)
+    NET.roster = msg.seats || [];
+    netRenderMembers();
+    return;
+  }
+  if (msg.kind === 'modal' && (!msg.buttons || !msg.buttons.length)) {
+    // 結果などの情報モーダル (回答不要)。次のスナップショットで自動的に閉じる
+    NET.guestInfoModal = true;
+    showModal('<div id="modal-result">' + (msg.html || '') + '</div><div class="modal-btns"><button id="btn-net-close">閉じる</button></div>');
+    var b = $('btn-net-close'); if (b) b.addEventListener('click', function () { NET.guestInfoModal = false; hideModal(); });
+    return;
+  }
+  NET.guestPrompt = msg;
+  netGuestApplyPrompt();
+}
+function netGuestApplyPrompt() {
+  var msg = NET.guestPrompt;
+  if (!msg || !G) return;
+  if (msg.kind === 'buttons') {
+    G.pending = { buttons: msg.buttons, resolve: function (v) { netGuestAnswer(msg.id, v); } };
+    renderActions();
+  } else if (msg.kind === 'discard') {
+    G.pendingDiscard = { restrict: msg.restrict || null };
+    if (msg.buttons && msg.buttons.length) G.pending = { buttons: msg.buttons, resolve: function (v) { netGuestAnswer(msg.id, { button: v }); } };
+    G.discardWait = { resolve: function (v) { netGuestAnswer(msg.id, v); } };
+    renderAll();
+  } else if (msg.kind === 'modal') {
+    modalChoice(msg.html || '', msg.buttons || []).then(function (v) { netGuestAnswer(msg.id, v); });
+  } else if (msg.kind === 'pick') {
+    // 牌選び: 自分の表示手牌をクリックして選択し、決定ボタンで牌id配列を返す
+    if (!G.netPick || G.netPick.id !== msg.id) {
+      G.netPick = { id: msg.id, maxN: msg.maxN || 1, selected: [], ids: {} };
+      (msg.ids || []).forEach(function (id) { G.netPick.ids[id] = true; });
+      if (msg.instruction) log(msg.instruction);
+    }
+    G.pickWait = true; G.pickMax = msg.maxN || 1;
+    netGuestRenderPick();
+  } else if (msg.kind === 'center') {
+    // 中央/ドラフト牌のクリック (renderAll が centerWait を見てリスナを付ける)
+    G.centerWait = { resolve: function (tile) { netGuestAnswer(msg.id, { tileId: tile.id }); } };
+    if (msg.buttons && msg.buttons.length) G.pending = { buttons: msg.buttons, resolve: function (v) { netGuestAnswer(msg.id, { button: v }); } };
+    renderAll();
+  } else if (msg.kind === 'put') {
+    // 手牌から1枚出す (exchangePut 経由のクリック)
+    G.pendingDiscard = { restrict: msg.restrict || null };
+    G.exchangePut = { resolve: function (tileId) { netGuestAnswer(msg.id, { tileId: tileId }); } };
+    if (msg.buttons && msg.buttons.length) G.pending = { buttons: msg.buttons, resolve: function (v) { netGuestAnswer(msg.id, { button: v }); } };
+    renderAll();
+  }
+}
+function netGuestRenderPick() {
+  var pk = G && G.netPick;
+  if (!pk) return;
+  G.narabeSelected = pk.selected.slice();
+  G.pending = { buttons: [
+    { label: '決定 (' + pk.selected.length + '枚)', value: 'ok' },
+    { label: 'やめる', value: 'cancel', cls: 'sub' }
+  ], resolve: function (v) {
+    if (v === 'cancel') netGuestAnswer(pk.id, { tileIds: null });
+    else netGuestAnswer(pk.id, { tileIds: pk.selected.slice() });
+  } };
+  renderAll();
+}
+function netGuestAnswer(id, value) {
+  if (!NET.guestPrompt || NET.guestPrompt.id !== id) return;
+  NET.guestPrompt = null;
+  if (G) {
+    G.pending = null; G.discardWait = null; G.pendingDiscard = null;
+    G.netPick = null; G.centerWait = null; G.exchangePut = null; G.pickWait = null; G.narabeSelected = null;
+  }
+  renderActions();
+  netSendTable({ t: 'answer', id: id, value: value });
+}
+
+/* ---------- ロビー/卓 UI ---------- */
+function netChatAppendTo(el, name, text) {
+  if (!el) return;
+  var div = document.createElement('div');
+  div.textContent = (name || '') + ': ' + (text || '');
+  el.appendChild(div);
+  while (el.children.length > 100) el.removeChild(el.firstChild);
+  el.scrollTop = el.scrollHeight;
+}
+function netChatAppend(which, name, text) {
+  netChatAppendTo($(which === 'lobby' ? 'net-lobby-chat' : 'net-table-chat'), name, text);
+  // 卓チャットは対局中の小窓にも流す (待合パネルは対局中は隠れているため)
+  if (which === 'table') netChatAppendTo($('net-match-chat-log'), name, text);
+}
+function netRenderTables() {
+  var el = $('net-tables'); if (!el) return;
+  if (!NET.tables.length) { el.innerHTML = '<p class="note">卓はありません</p>'; return; }
+  el.innerHTML = '';
+  NET.tables.forEach(function (t) {
+    var row = document.createElement('div');
+    row.className = 'net-table-row';
+    var info = document.createElement('span');
+    info.textContent = t.title + '（' + t.hostName + ' / ' + t.variant + ' / ' + t.players + '/' + t.seats + '人 / ' + t.status + '）';
+    row.appendChild(info);
+    var btn = document.createElement('button');
+    btn.textContent = '参加';
+    btn.disabled = (t.status !== 'open' || t.players >= t.seats);
+    btn.addEventListener('click', function () { netJoinTable(t.id); });
+    row.appendChild(btn);
+    el.appendChild(row);
+  });
+}
+function netRenderMembers() {
+  var el = $('net-members'); if (!el) return;
+  var lines = [];
+  var n = NET.tableSeats || 4;
+  for (var seat = 0; seat < n; seat++) {
+    if (seat === NET.seat) lines.push('席' + seat + ': ' + NET.name + '（あなた）');
+    else if (NET.mode === 'host' && NET.guests[seat]) lines.push('席' + seat + ': ' + NET.guests[seat].name + (NET.guests[seat].connected ? '' : '（切断中・CPU代打ち）'));
+    else if (NET.mode === 'host') lines.push('席' + seat + ': 空席（CPU）');
+    else if (NET.roster) {
+      var rs = NET.roster.find(function (r) { return r.seat === seat; });
+      lines.push('席' + seat + ': ' + (rs ? rs.name + (rs.connected || rs.cpu ? '' : '（切断中）') : '—'));
+    }
+    else lines.push('席' + seat + ': —');
+  }
+  el.innerHTML = lines.map(function (s) { return '<div>' + s + '</div>'; }).join('');
+  var sb = $('net-start'); if (sb) sb.style.display = (NET.mode === 'host') ? '' : 'none';
+  var tt = $('net-table-title'); if (tt) tt.textContent = '卓: ' + (NET.tableId || '');
+}
+function netShowTableView() {
+  $('net-lobby-view').classList.add('hidden');
+  $('net-table-view').classList.remove('hidden');
+  netRenderMembers();
+}
+function netCreateTable() {
+  NET.name = ($('net-name').value || '').trim() || 'ゲスト';
+  try { localStorage.setItem('hensokuNetName', NET.name); } catch (e) {}
+  NET.token = netToken();
+  NET.mode = 'host';
+  NET.tableSeats = isSanma() ? 3 : 4;
+  NET.guests = {}; NET.seats = { 0: 'local' };
+  var tableId = 't-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+  netConnectLobby();
+  netConnectTable(tableId, { title: NET.name + 'の卓', variant: S.variant, seats: NET.tableSeats });
+  netShowTableView();
+}
+function netJoinTable(tableId) {
+  NET.name = ($('net-name').value || '').trim() || 'ゲスト';
+  try { localStorage.setItem('hensokuNetName', NET.name); } catch (e) {}
+  NET.token = netToken();
+  NET.mode = 'guest';
+  var t = NET.tables.find(function (x) { return x.id === tableId; });
+  NET.tableSeats = t ? t.seats : 4;
+  netConnectTable(tableId, null);
+  netShowTableView();
+}
+function netLeaveTable() {
+  netSendTable({ t: 'leave' });
+  try { if (NET.tableWs) NET.tableWs.close(); } catch (e) {}
+  NET.tableWs = null;
+  NET.started = false;
+  NET.mode = 'off';
+  NET.roster = null;
+  var mc2 = $('net-match-chat'); if (mc2) mc2.classList.add('hidden');
+  NET.guests = {}; NET.seats = {}; NET.pendingPrompts = {};
+  $('net-table-view').classList.add('hidden');
+  $('net-lobby-view').classList.remove('hidden');
+}
+function netInit() {
+  var nameEl = $('net-name');
+  if (!nameEl) return;
+  try { nameEl.value = localStorage.getItem('hensokuNetName') || ''; } catch (e) {}
+  $('btn-net').addEventListener('click', function () {
+    var p = $('net-panel');
+    p.classList.toggle('hidden');
+    if (!p.classList.contains('hidden')) {
+      NET.name = (nameEl.value || '').trim() || 'ゲスト';
+      netConnectLobby();
+      p.scrollIntoView();
+    }
+  });
+  $('net-connect').addEventListener('click', function () {
+    NET.name = (nameEl.value || '').trim() || 'ゲスト';
+    try { localStorage.setItem('hensokuNetName', NET.name); } catch (e) {}
+    netConnectLobby();
+  });
+  $('net-create').addEventListener('click', netCreateTable);
+  $('net-start').addEventListener('click', netHostStart);
+  $('net-leave').addEventListener('click', netLeaveTable);
+  $('net-lobby-chat-send').addEventListener('click', function () {
+    var inp = $('net-lobby-chat-input'); var text = inp.value.trim(); if (!text) return; inp.value = '';
+    netSendLobby({ t: 'chat', text: text });
+  });
+  $('net-table-chat-send').addEventListener('click', function () {
+    var inp = $('net-table-chat-input'); var text = inp.value.trim(); if (!text) return; inp.value = '';
+    netSendTable({ t: 'chat', text: text });
+  });
+  // 対局中の卓チャット小窓
+  var mSend = $('net-match-chat-send'), mInp = $('net-match-chat-input'), mTgl = $('net-match-chat-toggle');
+  if (mSend && mInp) {
+    var sendMatch = function () { var text = mInp.value.trim(); if (!text) return; mInp.value = ''; netSendTable({ t: 'chat', text: text }); };
+    mSend.addEventListener('click', sendMatch);
+    mInp.addEventListener('keydown', function (e) { if (e.key === 'Enter') sendMatch(); });
+  }
+  if (mTgl) mTgl.addEventListener('click', function () {
+    var body = $('net-match-chat-body'); if (body) body.classList.toggle('hidden');
+  });
+}
+netInit();
 
 </script>
 </body>
