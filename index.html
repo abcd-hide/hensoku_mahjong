@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-22-114]</title>
+<title>変則麻雀 [build 2026-11-22-115]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -218,7 +218,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-22-114</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-22-115</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -1801,6 +1801,7 @@ function renderAll() {
     else { npEl.innerHTML = ''; npEl.classList.add('hidden'); }
   }
   $('variant-info').textContent = ({ standard: '通常麻雀', allmighty: 'オールマイティ麻雀（金色★=万能牌、1枚-1翻）', survival: 'サバイバル麻雀（テンパイ宣言必須・点数は減る一方）', roleplay: 'ロールプレイ麻雀（字牌を捨てて特技取得）', fiftyone: '51麻雀（中央の牌（人数分）と手牌を交換しながら進める）', sashi: '二人麻雀（対面と2人対戦・上がり形2つで点数移動）', exchange: '交換麻雀（全員同時にパス＆捨て牌・ダブルロンあり）', fourdraw: '4枚ヅモ麻雀（4枚ドラフト＆回し打ち）', group: 'タッグ麻雀（対面とペア・捨て牌の種類で次の番が決まる）', poverty: '大貧民／大富豪麻雀（役職と交換・8切り・革命・縛り）', uno: 'UNO麻雀（ツモか捨てるのどちらか・色か数字を合わせる）', chain: 'チェイン麻雀（相方と交換・チェインで翻数加算）', bridge: 'ブリッジ麻雀（ドラフト4枚＋トリックテイキング）', narabe: '並べ麻雀（中央ボード＋5枚ごとの手牌オープン）', napoleon: 'ナポレオン麻雀（ビットで決まる主役＋副官）', doubt: 'ダウト麻雀（嘘の鳴き・嘘リーチ・嘘ロンとダウト）', gdoubt: 'ダウトタッグ麻雀（タッグ×ダウト）' })[S.variant] || '';
+  if (S.variant === 'fourdraw' && isSanma()) $('variant-info').textContent = '3枚ヅモ麻雀（3枚ドラフト&回し打ち）'; // サンマはドラフトが3枚 (bd指示 2026-11-22)
   var seatsEl = $('seats'); seatsEl.innerHTML = '';
   for (var pi = 0; pi < G.players.length; pi++) {
     var p = G.players[pi];
@@ -2357,7 +2358,7 @@ if (!p.isHuman) {
 await sleep(200);
 var plan = cpuPlanDiscard(pi);
 if (S.variant === 'chain' && !p.fixed && !p.riichi && chainCpuWantsFix(pi, plan)) plan.fix = true;
-if (isDoubtVariant() && !p.riichi && p.menzen && p.score >= 1000 && playerShanten(p) === 1 && Math.random() < 0.10) plan.riichi = true;
+if (isDoubtVariant() && !p.riichi && p.menzen && p.score >= 1000 && playerShanten(p) === 1 && Math.random() < 0.10 && G.wall.length > 0) plan.riichi = true; // ハイテイは宣言不可
 if (S.variant === 'poverty' && G.shibariRestrict && G.shibariRestrict.indexOf(plan.tileId) < 0) {
   var altSh = p.hand.find(function (t) { return G.shibariRestrict.indexOf(t.id) >= 0; });
   if (altSh) plan = { tileId: altSh.id };
@@ -2377,7 +2378,7 @@ if (p.riichi && G.lastDrawn && !(pd && (pd.ev || pd.kans.length)) && !(isDoubtVa
   return applyDiscardChoice(pi, { tileId: G.lastDrawn.id, grantedAbility: grantedAuto });
 }
 if (pd && pd.foul) log('オールマイティ単騎のため、この形では上がれない（反則）');
-var riichiIds = (!p.riichi && p.menzen && S.variant !== 'survival' && p.score >= 1000)? riichiDiscardOptions(pi): [];
+var riichiIds = (!p.riichi && p.menzen && S.variant !== 'survival' && p.score >= 1000 && G.wall.length > 0)? riichiDiscardOptions(pi): []; // ハイテイ (山が空) はリーチ宣言不可
 var mode = { riichi: false, open: false, protect: false, declare: false, fix: false};
 while (true) {
 var buttons = [];
@@ -2457,6 +2458,7 @@ G.pending = null; renderActions();
 await doKita(pi);
 pd = computePostDraw(pi);
 riichiIds = (!p.riichi && p.menzen && S.variant !== 'survival' && p.score >= 1000) ? riichiDiscardOptions(pi) : riichiIds;
+if (G.wall.length === 0) { riichiIds = []; mode.riichi = false; mode.open = false; } // ハイテイ: 嶺上ツモが最後の牌ならリーチ宣言できない
 continue;
 }
 if (picked.button === '__narabe__') {
@@ -3237,6 +3239,11 @@ async function roundFourdraw() {
     var pi = (starter + k) % NP(), p = G.players[pi];
     G.current = pi;
     if (!G.draftBatch.length) break;
+    // ピック前に必ず描画する (bridgeDraft と同じ)。ネット対戦でラウンド先頭が
+    // リモートゲストだと、この描画 (=スナップショット送信) がないと配ったバッチが
+    // ゲストに届かず、中央が空のまま 'center' プロンプトだけが来て固まる
+    // (bd報告 2026-11-22: サンマ×ネット×4枚ヅモの2ラウンド目で操作不能)
+    renderAll();
     var kept = null;
     if (p.riichi) kept = riichiDraftKeep(p);
     else if (p.isHuman) {
@@ -4127,6 +4134,7 @@ async function doubtResolveDiscard(pi, dInfo) {
 async function doubtMaybeStack(pi) {
   var p = G.players[pi];
   if (S.variant !== 'doubt' || !p.riichi) return;
+  if (G.wall.length === 0) return; // ハイテイでは重ねリーチもできない (bd訂正 2026-11-22)
   // 重ねリーチ: リーチから3順ごとの自分の番 (ダウトタッグでは採用しない)
   var since = (p.ownTurns || 0) - (p.riichiAtOwnTurn || 0);
   if (!(since > 0 && since % 3 === 0 && p.lastStackOwnTurn !== p.ownTurns && p.score >= 1000)) return;
@@ -6187,23 +6195,38 @@ async function riichiTurn51(pi) {
       }
     }
     var waits = playerWaits(p);
-    var winTile = null;
-    for (var i = 0; i < G.center51.length; i++) if (waits.indexOf(G.center51[i].t) >= 0) { winTile = G.center51[i]; break; }
-    if (winTile) {
-      p.hand.push(winTile);
-      var ev = evalWin(p, winTile.t, { tsumo: true });
+    // 中央の当たり牌を全部評価する (複数あると点数が違うことがあるので選ばせる。bd指示 2026-11-22)
+    var winOpts = [];
+    for (var wi = 0; wi < G.center51.length; wi++) {
+      var ct51 = G.center51[wi];
+      if (waits.indexOf(ct51.t) < 0) continue;
+      p.hand.push(ct51);
+      var evw = evalWin(p, ct51.t, { tsumo: true });
       p.hand.pop();
-      if (ev) {
-        if (p.isHuman) {
-          NET.promptSeat = pi;
-          var ok = await waitHuman([{ label: 'ツモ！ ' + hanText(ev) + ' ' + ev.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
-          if (!ok) { log(p.name + ' は中央の当たり牌を見逃した'); return {}; }
-        }
-        G.center51 = G.center51.filter(function (t) { return t.id !== winTile.id; });
-        p.hand.push(winTile); G.lastDrawn = winTile;
-        await doWinTsumo(pi, ev);
-        return 'win';
+      if (evw) winOpts.push({ tile: ct51, ev: evw });
+    }
+    if (winOpts.length) {
+      var chosen51 = winOpts[0];
+      if (!p.isHuman && winOpts.length > 1) {
+        // CPU: 最も高い点数の当たり牌を選ぶ (同点なら中央の並び順で先のもの)
+        winOpts.forEach(function (o) { if (o.ev.score.total > chosen51.ev.score.total) chosen51 = o; });
       }
+      if (p.isHuman && winOpts.length > 1) {
+        NET.promptSeat = pi;
+        var wbtns = winOpts.map(function (o, oi) { return { label: MJ.TILE_NAMES[o.tile.t] + 'でツモ ' + hanText(o.ev) + ' ' + o.ev.fu + '符', value: oi }; });
+        wbtns.push({ label: '見逃す', value: 'pass', cls: 'sub' });
+        var wans = await waitHuman(wbtns);
+        if (wans === 'pass' || wans === null || wans === undefined) { log(p.name + ' は中央の当たり牌を見逃した'); return {}; }
+        chosen51 = winOpts[Number(wans)];
+      } else if (p.isHuman) {
+        NET.promptSeat = pi;
+        var ok = await waitHuman([{ label: 'ツモ！ ' + hanText(chosen51.ev) + ' ' + chosen51.ev.fu + '符', value: true }, { label: '見逃す', value: false, cls: 'sub' }]);
+        if (!ok) { log(p.name + ' は中央の当たり牌を見逃した'); return {}; }
+      }
+      G.center51 = G.center51.filter(function (t) { return t.id !== chosen51.tile.id; });
+      p.hand.push(chosen51.tile); G.lastDrawn = chosen51.tile;
+      await doWinTsumo(pi, chosen51.ev);
+      return 'win';
     }
     // リーチ後のカン: 通常麻雀の「待ちが変わらない場合のみ可」を51にも適用する (bd指示 2026-11-21)。
     // 51にはツモがなく嶺上牌はそのまま手牌に残るため、判定は riichiKanOk51 (カン+嶺上後の待ちで比較) を通ったものだけを出す
@@ -6331,7 +6354,8 @@ async function cpuExchange51(pi) {
   G.center51.slice().forEach(function (c) {
     p.hand.push(c);
     var ev = evalWin(p, c.t, { tsumo: true });
-    if (ev && !best) best = { take: c, ev: ev };
+    // 上がれる中央牌が複数あれば、最も高い点数のものを取る (同点なら並び順で先のもの)
+    if (ev && (!best || !best.ev || ev.score.total > best.ev.score.total)) best = { take: c, ev: ev };
     if (!best || !best.ev) {
       p.hand.forEach(function (h) {
         if (h.id === c.id) return;
@@ -6659,7 +6683,7 @@ async function sashiGetDiscard(pi) {
       if (legal.length) bestTile = legal.indexOf(bestTile) >= 0 ? bestTile : legal[0];
     }
     var plan = { tileId: bestTile.id, riichi: false };
-    if (!p.riichi && p.menzen && p.score >= 1000 && sashiWaits(p).length && Math.random() < 0.8) {
+    if (!p.riichi && p.menzen && p.score >= 1000 && G.wall.length > 0 && sashiWaits(p).length && Math.random() < 0.8) { // ハイテイは宣言不可
       var idx2 = p.hand.indexOf(bestTile); p.hand.splice(idx2, 1);
       if (sashiWaits(p).length) plan.riichi = true;
       p.hand.splice(idx2, 0, bestTile);
@@ -6668,7 +6692,7 @@ async function sashiGetDiscard(pi) {
   }
   // 人間
   var riichiIds = [];
-  if (!p.riichi && p.menzen && p.score >= 1000) {
+  if (!p.riichi && p.menzen && p.score >= 1000 && G.wall.length > 0) { // ハイテイは宣言不可
     p.hand.forEach(function (t) {
       var idx = p.hand.indexOf(t); p.hand.splice(idx, 1);
       if (sashiWaits(p).length) riichiIds.push(t.id);
@@ -7163,9 +7187,8 @@ async function finishHand(result) {
   var winners = result.multiWinners || [result.winner];
   var dealerWon = winners.indexOf(G.dealer) >= 0;
   showModal('<div id="modal-result">' + result.html + '</div><div class="modal-btns"><button id="btn-board-view" class="sub">場を見る</button><button id="btn-next-hand">次へ</button></div>');
-  netBroadcastModal($('modal-box').innerHTML);
   $('btn-board-view').addEventListener('click', toggleBoardView);
-  await new Promise(function (resolve) { $('btn-next-hand').addEventListener('click', function () { hideModal(); resolve(); }); });
+  await netAwaitResultNext($('modal-box').innerHTML);
   if (checkMatchEndByScore()) return;
   if (dealerWon) { G.honba++; log('親の連荘'); }
   else { G.honba = 0; G.handNo++; G.dealer = G.handNo % NP(); }
@@ -7223,8 +7246,7 @@ async function doRyukyoku() {
   log('流局（テンパイ ' + nTen + '人）');
   renderAll();
   showModal(html + '<div class="modal-btns"><button id="btn-next-hand">次へ</button></div>');
-  netBroadcastModal($('modal-box').innerHTML);
-  await new Promise(function (resolve) { $('btn-next-hand').addEventListener('click', function () { hideModal(); resolve(); }); });
+  await netAwaitResultNext($('modal-box').innerHTML);
   if (checkMatchEndByScore()) return;
   G.honba++;
   if (!tenpai[G.dealer]) { G.handNo++; G.dealer = G.handNo % NP(); }
@@ -7404,7 +7426,10 @@ function cpuPlanDiscard(pi) {
   var chosen = best[0];
   // リーチ判断
   var plan = { tileId: chosen.tile.id, riichi: false, openRiichi: false, protect: false, declareAfter: false, grantedAbility: null };
-  if (minSh === 0 && p.menzen && !p.riichi && S.variant !== 'survival' && p.score >= 1000) {
+  // ハイテイ (最後のツモ) ではリーチ宣言できない (bd指示 2026-11-22)。交換/4枚ヅモ/51 の
+  // リーチは山からのツモで宣言する形ではないので対象外とし、従来通り宣言できるままにする
+  var haiteiNoRiichi = G.wall.length === 0 && S.variant !== 'exchange' && S.variant !== 'fourdraw' && S.variant !== 'fiftyone';
+  if (minSh === 0 && p.menzen && !p.riichi && S.variant !== 'survival' && p.score >= 1000 && !haiteiNoRiichi) {
     // 待ちの残り枚数と手の価値を見て、無駄リーチを避ける
     var backupW = p.hand;
     p.hand = p.hand.filter(function (t) { return t.id !== chosen.tile.id; });
@@ -7738,7 +7763,8 @@ var NET = {
   guests: {},         // host側: seat -> {name, connected}
   promptSeat: null,   // 次の waitHuman/modalChoice の対象席 (呼び出し側が直前にセット)
   promptSeq: 1,
-  pendingPrompts: {}, // host側: id -> {seat, resolve, defaultFn}
+  pendingPrompts: {}, // host側: id -> {seat, resolve, defaultFn, tag}
+  resultWait: null,   // host側: 結果画面の「次へ」全員待ちの状態 (netWaitGuestsNext が管理)
   lastSnapJson: {},   // host側: seat -> 最後に送った snap の JSON (重複送信抑制)
   started: false,
   guestPrompt: null,  // guest側: 現在のプロンプト
@@ -7802,11 +7828,11 @@ function netDefaultButtonValue(buttons) {
   for (var j = buttons.length - 1; j >= 0; j--) if (buttons[j].cls === 'sub') return buttons[j].value;
   return buttons.length ? buttons[buttons.length - 1].value : null;
 }
-function netPromptRaw(seat, kind, payload, defaultFn) {
+function netPromptRaw(seat, kind, payload, defaultFn, tag) {
   return new Promise(function (resolve) {
     if (!netSeatConnected(seat)) { resolve({ netDefault: true, value: defaultFn() }); return; }
     var id = NET.promptSeq++;
-    NET.pendingPrompts[id] = { seat: seat, resolve: resolve, defaultFn: defaultFn };
+    NET.pendingPrompts[id] = { seat: seat, resolve: resolve, defaultFn: defaultFn, tag: tag };
     var msg = { t: 'prompt', id: id, seat: seat, kind: kind };
     Object.keys(payload || {}).forEach(function (k) { msg[k] = payload[k]; });
     netSendTable(msg);
@@ -8011,6 +8037,86 @@ function netBroadcastModal(html) {
   }
 }
 
+/* ---------- 結果画面の「次へ」全員待ち (ホスト側) ----------
+   bd指示 2026-11-22: ネット対戦の結果画面は、CPUを除く全員 (ホスト+接続中の
+   リモートゲスト) が「次へ」を押すまで次に進めない。各ゲストへは kind 'result'
+   のプロンプト (実id付き) を送り、回答は通常の answer チャネルで受ける。
+   切断したゲストは netHostGuestDown が未回答プロンプトをデフォルト解決する
+   ので、その時点でブロックが外れる。待ちの最中に再接続したゲストには結果
+   プロンプトを再送し、再びブロック対象に戻す (待ちが既に終わっていれば
+   次の局が始まっているので再送しない)。NET.resultWait が「誰がまだ押して
+   いないか」の唯一の管理場所で、ホストのボタン表示はここから更新する。 */
+function netResultBtnRefresh() {
+  var rw = NET.resultWait;
+  var btn = $('btn-next-hand');
+  if (!rw || !btn || !rw.hostClicked) return; // 押す前は通常の「次へ」のまま
+  var names = Object.keys(rw.pending).map(function (s) { return (G.players[s] && G.players[s].name) || ('席' + s); });
+  if (!names.length) return;
+  btn.disabled = true;
+  btn.textContent = names.join('・') + ' の『次へ』を待っています…';
+}
+function netWaitGuestsNext(cleanHtml) {
+  return new Promise(function (allResolve) {
+    var rw = {
+      html: cleanHtml,
+      pending: {},   // seat -> true: まだ「次へ」を押していない接続中ゲスト
+      gen: {},       // seat -> 結果プロンプト再送の世代 (古い世代の解決では進めない)
+      hostClicked: false,
+      finished: false,
+      finish: function () {
+        if (rw.finished) return;
+        rw.finished = true;
+        if (NET.resultWait === rw) NET.resultWait = null;
+        // 再送で残った古い結果プロンプトの残骸を掃除する (約束は未解決のままでよい)
+        Object.keys(NET.pendingPrompts).forEach(function (id) {
+          if (NET.pendingPrompts[id].tag === 'result') delete NET.pendingPrompts[id];
+        });
+        allResolve();
+      },
+      seatDone: function (seat) {
+        if (!rw.pending[seat]) return;
+        delete rw.pending[seat];
+        netResultBtnRefresh();
+        if (!Object.keys(rw.pending).length) rw.finish();
+      },
+      sendTo: function (seat) {
+        rw.gen[seat] = (rw.gen[seat] || 0) + 1;
+        var gen = rw.gen[seat];
+        netPromptRaw(seat, 'result', { html: rw.html }, function () { return 'next'; }, 'result')
+          .then(function () { if (rw.gen[seat] === gen) rw.seatDone(seat); });
+      },
+      rejoin: function (seat) {
+        if (rw.finished || !seat) return;
+        if (!rw.pending[seat]) { rw.pending[seat] = true; netResultBtnRefresh(); }
+        rw.sendTo(seat);
+      }
+    };
+    NET.resultWait = rw;
+    for (var seat = 1; seat < G.players.length; seat++) {
+      if (netSeatConnected(seat)) rw.pending[seat] = true;
+    }
+    Object.keys(rw.pending).forEach(function (s) { rw.sendTo(Number(s)); });
+    if (!Object.keys(rw.pending).length) rw.finish();
+  });
+}
+/* 結果モーダルの「次へ」待ち。ローカル対戦 (とゲスト側で誤って呼ばれた場合) は
+   従来通り自分のクリックだけで進む。ネット対戦ホストでは、全接続ゲストの
+   「次へ」も揃うまで進めない (finishHand / doRyukyoku が共用する) */
+function netAwaitResultNext(modalHtml) {
+  var localP = new Promise(function (resolve) {
+    $('btn-next-hand').addEventListener('click', function () {
+      if (typeof NET !== 'undefined' && NET && NET.resultWait) { NET.resultWait.hostClicked = true; netResultBtnRefresh(); }
+      resolve();
+    });
+  });
+  if (typeof NET === 'undefined' || !NET || NET.mode !== 'host' || !NET.started) {
+    return localP.then(function () { hideModal(); });
+  }
+  var clean = String(modalHtml).replace(/<div class="modal-btns">[\s\S]*?<\/div>/, '');
+  var guestsP = netWaitGuestsNext(clean);
+  return Promise.all([localP, guestsP]).then(function () { hideModal(); });
+}
+
 /* ---------- 接続・メッセージ処理 ---------- */
 function netConnectLobby() {
   if (NET.lobbyWs && NET.lobbyWs.readyState <= 1) return;
@@ -8134,6 +8240,8 @@ function netHostOnGuestEvent(m) {
       netSendTable({ t: 'start', settings: JSON.parse(JSON.stringify(S)) });
       netSendSnapshots(true);
       renderAll();
+      // 結果画面の全員待ちの最中なら、その席にも結果プロンプトを再送する (再びブロック対象になる)
+      if (NET.resultWait) NET.resultWait.rejoin(seat);
     }
   } else if (m.event === 'disconnect') {
     netHostGuestDown(seat);
@@ -8271,6 +8379,18 @@ function netGuestApplyPrompt() {
     renderAll();
   } else if (msg.kind === 'modal') {
     modalChoice(msg.html || '', msg.buttons || []).then(function (v) { netGuestAnswer(msg.id, v); });
+  } else if (msg.kind === 'result') {
+    // 結果画面: 「次へ」を押すまでホスト側は次に進まない。押したら待機表示にし、
+    // 次のスナップショット (次の局) が来たら情報モーダルと同様に自動で閉じる。
+    // スナップショットが割り込んで閉じても、未回答ならここで再表示される
+    NET.guestInfoModal = true;
+    showModal('<div id="modal-result">' + (msg.html || '') + '</div><div class="modal-btns"><button id="btn-net-next">次へ</button></div>');
+    var bn = $('btn-net-next');
+    if (bn) bn.addEventListener('click', function () {
+      bn.disabled = true;
+      bn.textContent = '待機中…';
+      netGuestAnswer(msg.id, 'next');
+    });
   } else if (msg.kind === 'pick') {
     // 牌選び: 自分の表示手牌をクリックして選択し、決定ボタンで牌id配列を返す
     if (!G.netPick || G.netPick.id !== msg.id) {
