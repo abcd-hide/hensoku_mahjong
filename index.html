@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-22-112]</title>
+<title>変則麻雀 [build 2026-11-22-113]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -56,7 +56,7 @@ legend { font-weight: bold; padding: 0 6px; }
 #center51 .c51-label { font-size: 1.1em; color: #ffe9a8; font-weight: bold; }
 #table #center51 .tile.small { width: 3.3em; height: 4.4em; }
 
-.seat { position: absolute; width: 66%; height: 33%; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: .45em; pointer-events: none; }
+.seat { position: absolute; width: 66%; height: 33%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: .45em; pointer-events: none; }
 .seat.pos-0 { width: 82%; left: 9%; bottom: 0.2%; z-index: 3; }
 .variant-sashi .seat.pos-1, .variant-sashi .seat.pos-3 { display: none; }
 .seat.team-a .sinfo { box-shadow: inset 0 0 0 3px #4da3ff; }
@@ -64,14 +64,17 @@ legend { font-weight: bold; padding: 0 6px; }
 .seat.pos-2 { left: 17%; top: 0.2%; transform: rotate(180deg); }
 .seat.pos-3 { left: -16.5%; top: 33.5%; transform: rotate(90deg); }
 .seat.pos-1 { left: 50.5%; top: 33.5%; transform: rotate(-90deg); }
-.pond { display: flex; flex-wrap: wrap; width: 27.3em; gap: .18em; align-content: flex-start; min-height: 5.95em; }
+.pond { display: flex; flex-wrap: wrap; width: 27.3em; gap: .18em; align-content: flex-start; min-height: 5.95em; margin-bottom: auto; }
 .pond.wide { width: 40.2em; }
 .pond.wide2 { width: 42.4em; }
 .pond.wide2 .tile.small { width: 3.35em; height: 4.47em; }
-.sinfo { display: flex; gap: .9em; align-items: center; background: rgba(0,0,0,.38); padding: .28em .95em; border-radius: .8em; font-size: 1.5em; white-space: nowrap; }
+.sinfo { display: flex; gap: .9em; align-items: center; justify-content: center; flex-wrap: wrap; row-gap: .12em; background: rgba(0,0,0,.38); padding: .3em 1em; border-radius: .8em; font-size: 1.95em; white-space: nowrap; }
 .seat.active .sinfo { background: #e8b23a; color: #222; box-shadow: 0 0 14px rgba(232,178,58,.8); }
 .pname { font-weight: bold; }
-.pscore { font-weight: bold; color: #ffe9a8; }
+.pscore { font-weight: bold; color: #ffe9a8; font-size: 1.18em; }
+.flags .net-down { background: #d42a1e; color: #fff; font-weight: bold; box-shadow: 0 0 0 2px #ffd76a, 0 0 12px rgba(212,42,30,.85); animation: net-down-blink 1.1s ease-in-out infinite; }
+@keyframes net-down-blink { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+#net-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 90; background: #b3312a; color: #fff; font-weight: bold; font-size: 16px; text-align: center; padding: 10px 8px; box-shadow: 0 2px 12px rgba(0,0,0,.55); }
 .seat.active .pscore { color: #7a2d00; }
 .flags span { background: #0c2c1b; color: #f2f2e8; border-radius: 4px; padding: 1px 6px; margin-right: 4px; font-size: .75em; }
 .flags .riichi { background: #b3312a; color: #fff; }
@@ -213,8 +216,9 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 </style>
 </head>
 <body>
+<div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-22-112</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-22-113</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -421,7 +425,10 @@ var TILE_NAMES = [];
   for (var s = 0; s < 3; s++) for (var n = 1; n <= 9; n++) TILE_NAMES.push(n + suits[s]);
   ['東', '南', '西', '北', '白', '發', '中'].forEach(function (h) { TILE_NAMES.push(h); });
 })();
-function nextTileForDora(t) {
+function nextTileForDora(t, sanma) {
+  // サンマでは萬子2-8が存在しないため、萬子のサイクルは 1萬⇄9萬 に潰れる
+  if (sanma && t === 0) return 8;
+  if (sanma && t === 8) return 0;
   if (t < 27) { var s = SUIT(t), n = NUM(t); return s * 9 + (n % 9); }
   if (IS_WIND(t)) return 27 + ((t - 27 + 1) % 4);
   return 31 + ((t - 31 + 1) % 3);
@@ -1480,19 +1487,21 @@ function sortHand(p) {
 }
 function seatWindOf(pi) { return 27 + ((pi - G.dealer + NP()) % NP()); }
 function doraTypesNow(extraForPlayer) {
+  var sm = isSanma(); // サンマでは萬子のドラサイクルが 1萬⇄9萬 に潰れる
   var inds = G.doraIndicators.filter(function (ind) { return ind.t >= 0; }); // 花牌の表示牌はドラを生まない
-  var types = inds.map(function (ind) { return MJ.nextTileForDora(ind.t); });
+  var types = inds.map(function (ind) { return MJ.nextTileForDora(ind.t, sm); });
   if (extraForPlayer && hasAbility(extraForPlayer, 'dorabaku')) {
-    inds.forEach(function (ind) { types.push(MJ.nextTileForDora(MJ.nextTileForDora(ind.t))); });
+    inds.forEach(function (ind) { types.push(MJ.nextTileForDora(MJ.nextTileForDora(ind.t, sm), sm)); });
   }
   return types;
 }
 function uraTypesNow(extraForPlayer) {
   if (S.variant === 'survival' || !S.ura) return null;
+  var sm = isSanma();
   var inds2 = G.uraIndicators.filter(function (ind) { return ind.t >= 0; });
-  var types = inds2.map(function (ind) { return MJ.nextTileForDora(ind.t); });
+  var types = inds2.map(function (ind) { return MJ.nextTileForDora(ind.t, sm); });
   if (extraForPlayer && hasAbility(extraForPlayer, 'dorabaku')) {
-    inds2.forEach(function (ind) { types.push(MJ.nextTileForDora(MJ.nextTileForDora(ind.t))); });
+    inds2.forEach(function (ind) { types.push(MJ.nextTileForDora(MJ.nextTileForDora(ind.t, sm), sm)); });
   }
   return types;
 }
@@ -1694,12 +1703,15 @@ function meldTilesHTML(m, small, ownerView, ownerPi, reveal) {
   if (m.kind === 'kan' && !m.open && !m.hidden) {
     return m.tiles.map(function (t, i) { return tileHTML(t, { small: !!small, back: i === 1 || i === 2 }); }).join('');
   }
-  // 鳴き元との位置関係: 3=上家 2=対面 1=下家。横向き牌の位置で誰から鳴いたかを示す
+  // 鳴き元との位置関係: rel = 打牌者 - 鳴いた人 (mod 人数)。下家=1、対面=2 (4人のみ)、
+  // 上家=人数-1 (4人: 3 / サンマ: 2)。横向き牌の位置で誰から鳴いたかを示す
   var rel = (m.fromPi === undefined || m.fromPi === null) ? null : (((m.fromPi - (ownerPi || 0)) % NP()) + NP()) % NP();
   function calledPos() {
     if (rel === null) return m.kind === 'kan' ? 1 : 0;
-    if (m.kind === 'tri') return rel === 3 ? 0 : rel === 2 ? 1 : 2;
-    if (m.kind === 'kan') return rel === 3 ? 0 : rel === 2 ? 1 : 3;
+    var kamicha = NP() > 2 && rel === NP() - 1; // 上家 (サンマでは rel=2 が上家。対面はいない)
+    var toimen = NP() === 4 && rel === 2;       // 対面は4人のときだけ
+    if (m.kind === 'tri') return kamicha ? 0 : toimen ? 1 : 2;
+    if (m.kind === 'kan') return kamicha ? 0 : toimen ? 1 : 3;
     return 0;
   }
   if (m.hidden && !ownerView && !reveal) {
@@ -1804,6 +1816,8 @@ function renderAll() {
   if (S.variant === 'chain' && G.chainOut && G.chainOut[pi]) flags += '<span>上がり済み</span>';
   if (S.variant === 'napoleon' && G.napoleon && pi === G.napoleon.pi) flags += '<span>ナポレオン ' + G.napoleon.bid + '点・' + napoleonTrumpName(G.napoleon.trump) + '</span>';
     if (p.abilities && p.abilities.length) { flags += '<span class="ability">特技:' + p.abilities.map(function (aid) { var ab = ABILITIES.find(function (a) { return a.id === aid; }); return ab ? ab.name : ''; }).join('・') + '</span>'; }
+    // ネット対戦: 切断中のリモート席にはバッジを出す (状態は G.netSeats、ホストが管理しスナップショットで配る)
+    if (typeof NET !== 'undefined' && NET && NET.mode !== 'off' && G.netSeats && G.netSeats[pi] && G.netSeats[pi].remote && !G.netSeats[pi].connected) flags += '<span class="net-down">切断中（CPU代打ち）</span>';
     var pond = p.discards.map(function (d) {
       return tileHTML(d.tile, { small: true, extra: ((d.riichi || d.stacked) ? 'riichi-d' : '') + (d.called ? ' called' : '') + (d.protected ? ' protected' : '') });
     }).join('');
@@ -2271,7 +2285,7 @@ function flipKanDora() {
   G.uraIndicators.push(ui);
   G.kanDoraCount++;
   if (di.t < 0) log('槓ドラ表示: ' + tileObjName(di) + '（花牌なのでドラなし）');
-  else log('槓ドラ表示: ' + MJ.TILE_NAMES[di.t] + '（ドラは ' + MJ.TILE_NAMES[MJ.nextTileForDora(di.t)] + '）');
+  else log('槓ドラ表示: ' + MJ.TILE_NAMES[di.t] + '（ドラは ' + MJ.TILE_NAMES[MJ.nextTileForDora(di.t, isSanma())] + '）');
 }
 function unflipKanDora() {
   // ダウトで槓が崩れたとき、その槓で最後に開けた槓ドラを閉じる (bd指示 2026-11-18)
@@ -7660,11 +7674,46 @@ var NET = {
   started: false,
   guestPrompt: null,  // guest側: 現在のプロンプト
   guestInfoModal: false,
-  roster: null        // guest側: ホストから受け取った席/名前一覧 (待合室表示用)
+  roster: null,       // guest側: ホストから受け取った席/名前一覧 (待合室表示用)
+  leaving: false,     // guest側: 自分から退出中は再接続しない
+  hostGone: false,    // guest側: ホスト退出/卓消滅が確定したら再接続しない
+  reconnectTimer: null // guest側: 再接続タイマー
 };
 function netSendLobby(obj) { try { if (NET.lobbyWs && NET.lobbyWs.readyState === 1) NET.lobbyWs.send(JSON.stringify(obj)); } catch (e) {} }
 function netSendTable(obj) { try { if (NET.tableWs && NET.tableWs.readyState === 1) NET.tableWs.send(JSON.stringify(obj)); } catch (e) {} }
 function netSendTableRaw(str) { try { if (NET.tableWs && NET.tableWs.readyState === 1) NET.tableWs.send(str); } catch (e) {} }
+/* 席ごとの接続状態ビューを G.netSeats に保つ (ホスト側で管理)。
+   renderAll がバッジ表示に使い、スナップショット経由でゲストにも配られる。
+   形: [{name, remote, connected}] (プレイヤー番号順) */
+function netRefreshSeatsView() {
+  if (!G || NET.mode !== 'host') return;
+  var arr = [];
+  for (var i = 0; i < G.players.length; i++) {
+    if (i === 0) arr.push({ name: NET.name || G.players[0].name, remote: false, connected: true });
+    else if (NET.guests[i] && NET.guests[i].name) arr.push({ name: NET.guests[i].name, remote: true, connected: !!NET.guests[i].connected });
+    else arr.push({ name: G.players[i].name, remote: false, connected: true });
+  }
+  G.netSeats = arr;
+}
+/* ゲスト側: 自分の回線が切れたことを知らせるバナー */
+function netShowDownBanner(show) {
+  var b = $('net-banner');
+  if (b) b.classList.toggle('hidden', !show);
+}
+function netStopReconnect() {
+  if (NET.reconnectTimer) { clearInterval(NET.reconnectTimer); NET.reconnectTimer = null; }
+}
+/* ゲスト側: 卓ソケットが落ちたらバナーを出し、同じトークンで再接続を繰り返す
+   (中継が同じ席を返し、ホストが start+スナップショットを再送して復帰する) */
+function netGuestSocketDown() {
+  if (NET.mode !== 'guest' || NET.leaving || NET.hostGone) return;
+  netShowDownBanner(true);
+  if (NET.reconnectTimer) return;
+  NET.reconnectTimer = setInterval(function () {
+    if (NET.mode !== 'guest' || NET.leaving || NET.hostGone) { netStopReconnect(); netShowDownBanner(false); return; }
+    if (!NET.tableWs) netConnectTable(NET.tableId, null);
+  }, 3000);
+}
 function netSeatConnected(seat) {
   return NET.seats[seat] === 'remote' && !!NET.guests[seat] && !!NET.guests[seat].connected && !!NET.tableWs && NET.tableWs.readyState === 1;
 }
@@ -7822,6 +7871,8 @@ function netSnapshotFor(seat) {
   ['chainOut', 'bridgeNoRon'].forEach(function (k) {
     if (Array.isArray(snap[k])) { var a = []; for (var j = 0; j < np; j++) a[j] = snap[k][(seat + j) % np]; snap[k] = a; }
   });
+  // 接続状態ビューも同じ回転をする (名前と真偽だけなので秘匿情報は含まれない)
+  if (Array.isArray(snap.netSeats)) { var ns = []; for (var j4 = 0; j4 < np; j4++) ns[j4] = snap.netSeats[(seat + j4) % np]; snap.netSeats = ns; }
   if (snap.abilityPool) Object.keys(snap.abilityPool).forEach(function (k) { if (typeof snap.abilityPool[k] === 'number') snap.abilityPool[k] = netRotIdx(snap.abilityPool[k], seat, np); });
   if (snap.shibari && typeof snap.shibari.untilPi === 'number') snap.shibari.untilPi = netRotIdx(snap.shibari.untilPi, seat, np);
   if (Array.isArray(snap.pondDropQueue)) snap.pondDropQueue.forEach(function (e) { if (e && typeof e.owner === 'number') e.owner = netRotIdx(e.owner, seat, np); });
@@ -7917,9 +7968,25 @@ function netConnectTable(tableId, create) {
     var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
     netOnTableMsg(m);
   };
-  ws.onclose = function () { if (NET.tableWs === ws) NET.tableWs = null; };
+  ws.onerror = function () { try { ws.close(); } catch (e) {} };
+  ws.onclose = function () {
+    if (NET.tableWs === ws) NET.tableWs = null;
+    // ゲスト側: 予期せぬ切断ならバナーを出して再接続を試み続ける
+    if (NET.mode === 'guest') netGuestSocketDown();
+  };
 }
 function netOnTableMsg(m) {
+  if (m.t === 'error') {
+    // 再接続したのに卓が消えている (ホスト退出済み) 場合は、復帰不能として明示する
+    if (NET.mode === 'guest' && NET.seat != null && (m.reason === 'closed' || m.reason === 'full')) {
+      NET.hostGone = true;
+      netStopReconnect(); netShowDownBanner(false);
+      NET.started = false;
+      showModal('<h3>ホストが退出しました</h3><p>この卓の対局は終了しました。</p><div class="modal-btns"><button id="btn-net-close2">閉じる</button></div>');
+      var be = $('btn-net-close2'); if (be) be.addEventListener('click', hideModal);
+    }
+    return;
+  }
   if (m.t === 'seated') {
     NET.seat = m.seat;
     if (m.seat === 0) NET.mode = 'host';
@@ -8007,6 +8074,8 @@ function netHostOnGuestEvent(m) {
   }
   netRenderMembers();
   netSendRoster();
+  // 対局中なら接続状態バッジを即座に反映する
+  if (NET.started && G) { netRefreshSeatsView(); renderAll(); }
 }
 function netHostGuestDown(seat) {
   if (NET.guests[seat]) NET.guests[seat].connected = false;
@@ -8037,6 +8106,7 @@ function netHostStart() {
   $('net-panel').classList.add('hidden');
   var mc0 = $('net-match-chat'); if (mc0) mc0.classList.remove('hidden');
   netSendRoster();
+  netRefreshSeatsView();
   renderAll();
 }
 /* ゲスト側 */
@@ -8044,6 +8114,8 @@ function netGuestOnTableMsg(m) {
   if (m.t === 'start') { netGuestStart(m); return; }
   if (m.t === 'snap') {
     if (!m.data) return;
+    // 新しいスナップショットが届いた = 回線は復帰した
+    netStopReconnect(); netShowDownBanner(false);
     G = m.data;
     if (NET.guestInfoModal) { hideModal(); NET.guestInfoModal = false; }
     renderAll();
@@ -8053,6 +8125,8 @@ function netGuestOnTableMsg(m) {
   if (m.t === 'prompt') { netGuestOnPrompt(m); return; }
   if (m.t === 'speak') { speakCall(m.text); return; }
   if (m.t === 'hostLeft') {
+    NET.hostGone = true;
+    netStopReconnect(); netShowDownBanner(false);
     NET.started = false;
     showModal('<h3>ホストが退出しました</h3><p>この卓の対局は終了しました。</p><div class="modal-btns"><button id="btn-net-close2">閉じる</button></div>');
     var b2 = $('btn-net-close2'); if (b2) b2.addEventListener('click', hideModal);
@@ -8062,6 +8136,7 @@ function netGuestOnTableMsg(m) {
 function netGuestStart(m) {
   NET.mode = 'guest';
   NET.started = true;
+  NET.guestPrompt = null; // 再接続時の start 再送では、古いプロンプトを持ち越さない
   if (m.settings) Object.keys(m.settings).forEach(function (k) { S[k] = m.settings[k]; });
   $('settings-panel').classList.add('hidden');
   $('net-panel').classList.add('hidden');
@@ -8204,6 +8279,7 @@ function netCreateTable() {
   try { localStorage.setItem('hensokuNetName', NET.name); } catch (e) {}
   NET.token = netToken();
   NET.mode = 'host';
+  NET.leaving = false; NET.hostGone = false;
   NET.tableSeats = isSanma() ? 3 : 4;
   NET.guests = {}; NET.seats = { 0: 'local' };
   var tableId = 't-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
@@ -8216,17 +8292,21 @@ function netJoinTable(tableId) {
   try { localStorage.setItem('hensokuNetName', NET.name); } catch (e) {}
   NET.token = netToken();
   NET.mode = 'guest';
+  NET.leaving = false; NET.hostGone = false;
   var t = NET.tables.find(function (x) { return x.id === tableId; });
   NET.tableSeats = t ? t.seats : 4;
   netConnectTable(tableId, null);
   netShowTableView();
 }
 function netLeaveTable() {
+  NET.leaving = true; // 自分からの退出では再接続バナーを出さない
+  netStopReconnect(); netShowDownBanner(false);
   netSendTable({ t: 'leave' });
   try { if (NET.tableWs) NET.tableWs.close(); } catch (e) {}
   NET.tableWs = null;
   NET.started = false;
   NET.mode = 'off';
+  NET.hostGone = false;
   NET.roster = null;
   var mc2 = $('net-match-chat'); if (mc2) mc2.classList.add('hidden');
   NET.guests = {}; NET.seats = {}; NET.pendingPrompts = {};
