@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-22-113]</title>
+<title>変則麻雀 [build 2026-11-22-114]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -22,7 +22,7 @@ button:disabled { opacity: .45; cursor: default; }
 #net-panel { background: #eef4ea; color: #222; margin: 12px; border-radius: 10px; padding: 14px; }
 #net-panel h2 { margin-top: 0; }
 #net-panel h3 { margin: 10px 0 4px; }
-.net-chat { height: 110px; overflow-y: auto; background: #fff; border: 1px solid #bbb; border-radius: 6px; padding: 4px 8px; font-size: 13px; margin-bottom: 6px; }
+.net-chat { height: 110px; overflow-y: auto; background: #fff; color: #222; border: 1px solid #bbb; border-radius: 6px; padding: 4px 8px; font-size: 13px; margin-bottom: 6px; }
 .net-table-row { display: flex; justify-content: space-between; align-items: center; background: #fff; border: 1px solid #bbb; border-radius: 6px; padding: 4px 8px; margin: 4px 0; }
 #net-match-chat { margin-top: 8px; }
 #net-match-chat-log { height: 90px; margin-top: 4px; }
@@ -218,7 +218,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-22-113</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-22-114</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
@@ -380,7 +380,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
   <div id="net-table-view" class="hidden">
     <h3 id="net-table-title">卓</h3>
     <div id="net-members"></div>
-    <p><button id="net-start">対戦開始</button> <button id="net-leave" class="sub">卓を出る</button></p>
+    <p><button id="net-start">対戦開始</button> <button id="net-back" class="sub" style="display:none">待合室に戻る（再戦）</button> <button id="net-leave" class="sub">卓を出る</button></p>
     <h3>卓チャット</h3>
     <div id="net-table-chat" class="net-chat"></div>
     <input type="text" id="net-table-chat-input" maxlength="200"><button id="net-table-chat-send">送信</button>
@@ -2655,7 +2655,7 @@ if (oIdxH >= 0 && G.players[oIdxH].isHuman && !G.players[oIdxH].riichi) {
 for (var wi = claimers.length - 1; wi >= 0; wi--) {
 if (claimers[wi].kind === 'wild' && claimers[wi].pi === oIdxH) { humanWildOpts = claimers[wi].options; claimers.splice(wi, 1); }
 }
-if (!isSanma() && oIdxH === (pi + 1) % NP()) humanWildChiOpts = wildChiOptions(G.players[oIdxH]); // サンマはチーなし (オーマイ万能チーも不可)
+if (wildChiEligible(oIdxH, pi)) humanWildChiOpts = wildChiOptions(G.players[oIdxH]); // 万能チーの資格は通常チーと同じ (サンマはどこチー所持者)
 if (!claimers.some(function (c) { return c.pi === oIdxH; }) && (humanWildOpts.length || humanWildChiOpts.length)) {
 var oRank = humanWildOpts.some(function (o) { return o.callKind === 'kan'; }) ? 0 : 1;
 var pos = claimers.length;
@@ -2685,21 +2685,56 @@ if (cp.isHuman && cl.pi === 0 && noCallOn()) { humanPassedBoth = true; oomaiHuma
 else if (cp.isHuman) {
 renderAll();
 var chiSeqsH = (cl.kind !== 'oomai' && ((!isSanma() && cl.pi === (pi + 1) % NP()) || (isSanma() && S.variant === 'roleplay' && hasAbility(cp, 'dokochi')))) ? chiOptions(cp, tile.t) : [];
-var wildBtnsH = [];
+var wildBtnsH = [], wildChiBtnsH = [];
 if (cl.pi === 0 || humanWildOpts.length || humanWildChiOpts.length) {
 humanWildOpts.forEach(function (o, oi4) { wildBtnsH.push({ label: (o.callKind === 'kan' ? 'カン' : 'ポン') + '（万能: ' + MJ.TILE_NAMES[tile.t] + '→' + MJ.TILE_NAMES[o.effType] + '）' + wildOptionLabel(o), value: 'wild' + oi4 }); });
-humanWildChiOpts.forEach(function (o, oi5) { wildBtnsH.push({ label: 'チー（万能: ' + MJ.TILE_NAMES[tile.t] + '→' + MJ.TILE_NAMES[o.effType] + '）' + wildOptionLabel(o), value: 'wildchi' + oi5 }); });
+humanWildChiOpts.forEach(function (o, oi5) { wildChiBtnsH.push({ label: 'チー（万能: ' + MJ.TILE_NAMES[tile.t] + '→' + MJ.TILE_NAMES[o.effType] + '）' + wildOptionLabel(o), value: 'wildchi' + oi5 }); });
 }
-if (chiSeqsH.length || wildBtnsH.length || cl.kind === 'oomai') {
+var hasWildH = wildBtnsH.length > 0 || wildChiBtnsH.length > 0;
+if (chiSeqsH.length || wildBtnsH.length || wildChiBtnsH.length || cl.kind === 'oomai') {
 // ポン/カン・チー・万能鳴きのうち可能なものを、1つのプロンプトで全部出す
+var ansH = null;
+if (hasWildH) {
+// オーマイ万能の判定だけは、万能の当てはめパターンが多すぎるので「種類→具体的な選択肢」の2段階にする。
+// 通常の鳴き判定は従来通り1段階 (bd指示 2026-11-22: 「このパターンはオールマイティ捨ての判定なので、たくさんありすぎるから2段階にしてほしい。普段は1段階で十分なはず」)
+while (true) {
+var kindBtnsH = [];
+if (cl.kind === 'pon' || cl.kind === 'kan' || humanWildOpts.some(function (o) { return o.callKind === 'pon'; })) kindBtnsH.push({ label: 'ポン！ ' + MJ.TILE_NAMES[tile.t], value: 'kindpon' });
+if (cl.kind === 'kan' || humanWildOpts.some(function (o) { return o.callKind === 'kan'; })) kindBtnsH.push({ label: 'カン！ ' + MJ.TILE_NAMES[tile.t], value: 'kindkan' });
+if (chiSeqsH.length || wildChiBtnsH.length) kindBtnsH.push({ label: 'チー！ ' + MJ.TILE_NAMES[tile.t], value: 'kindchi' });
+kindBtnsH.push({ label: 'パス', value: 'pass', cls: 'sub' });
+NET.promptSeat = cl.pi;
+var kindAnsH = await waitHuman(kindBtnsH);
+if (kindAnsH !== 'kindpon' && kindAnsH !== 'kindkan' && kindAnsH !== 'kindchi') { ansH = kindAnsH; break; }
+// 2段階目: 選んだ種類の具体的な選択肢 (通常分も含む) + 「戻る」
+var optBtnsH = [];
+if (kindAnsH === 'kindpon') {
+if (cl.kind === 'pon' || cl.kind === 'kan') optBtnsH.push({ label: 'ポン！ ' + MJ.TILE_NAMES[tile.t], value: 'pon' });
+humanWildOpts.forEach(function (o, oi7) { if (o.callKind === 'pon') optBtnsH.push(wildBtnsH[oi7]); });
+} else if (kindAnsH === 'kindkan') {
+if (cl.kind === 'kan') optBtnsH.push({ label: 'カン！ ' + MJ.TILE_NAMES[tile.t], value: 'kan' });
+humanWildOpts.forEach(function (o, oi8) { if (o.callKind === 'kan') optBtnsH.push(wildBtnsH[oi8]); });
+} else {
+if (chiSeqsH.length) optBtnsH.push({ label: 'チー！ ' + MJ.TILE_NAMES[tile.t], value: 'chi' });
+optBtnsH = optBtnsH.concat(wildChiBtnsH);
+}
+optBtnsH.push({ label: '戻る', value: 'back', cls: 'sub' });
+NET.promptSeat = cl.pi;
+var optAnsH = await waitHuman(optBtnsH);
+if (optAnsH === 'back' || optAnsH === null || optAnsH === undefined) continue; // 1段階目 (種類の選択) に戻る
+ansH = optAnsH;
+break;
+}
+} else {
+// 万能なしの通常プロンプトは従来通り1段階で全部出す
 var btnsH = [];
 if (cl.kind === 'kan') { btnsH.push({ label: 'カン！ ' + MJ.TILE_NAMES[tile.t], value: 'kan' }); btnsH.push({ label: 'ポン！ ' + MJ.TILE_NAMES[tile.t], value: 'pon' }); }
 else if (cl.kind === 'pon') btnsH.push({ label: 'ポン！ ' + MJ.TILE_NAMES[tile.t], value: 'pon' });
 if (chiSeqsH.length) btnsH.push({ label: 'チー！ ' + MJ.TILE_NAMES[tile.t], value: 'chi' });
-btnsH = btnsH.concat(wildBtnsH);
 btnsH.push({ label: 'パス', value: 'pass', cls: 'sub' });
 NET.promptSeat = cl.pi;
-var ansH = await waitHuman(btnsH);
+ansH = await waitHuman(btnsH);
+}
 if (ansH === 'chi') {
 var seqH = chiSeqsH[0];
 if (chiSeqsH.length > 1) {
@@ -2744,7 +2779,7 @@ var qpi = chiOrder[chi], qp = G.players[qpi];
 if (qp.isHuman && humanPassedBoth) continue;
 var seqs = chiOptions(qp, tile.t);
 if (!seqs.length) {
-if (qpi === (pi + 1) % NP() && oomaiOwnerIdx(tile, pi) === qpi && !(qp.isHuman && oomaiHumanPassed)) {
+if (wildChiEligible(qpi, pi) && oomaiOwnerIdx(tile, pi) === qpi && !(qp.isHuman && oomaiHumanPassed)) {
 var wcopts = wildChiOptions(qp);
 if (wcopts.length) {
 var wchosen = null;
@@ -6802,6 +6837,13 @@ if (hasAbility(q, 'oomai') && tile.t === seatWindOf(qi)) return qi;
 }
 return -1;
 }
+function wildChiEligible(qi2, discarderPi) {
+  // 万能チー (オーマイ) の資格は通常チーと同じ: 4人は上家からのみ。
+  // サンマは通常チー自体が無いが、特技「どこチー」所持者は誰からでもチーできるので万能チーもそれに合わせる
+  // (bd報告 2026-11-22: サンマで どこチー+オーマイ を持っているのに万能チーが出なかった)
+  if (isSanma()) return S.variant === 'roleplay' && hasAbility(G.players[qi2], 'dokochi');
+  return qi2 === (discarderPi + 1) % NP();
+}
 function wildPonKanOptions(p, tile) {
 var counts = new Array(34).fill(0);
 p.hand.forEach(function (t) { counts[t.t]++; });
@@ -7214,13 +7256,18 @@ async function ryukyokuSurvival() {
   G.handNo++; G.dealer = G.handNo % NP(); G.honba = 0;
   nextHand(false);
 }
+/* ネット対戦のホストには、結果画面に「待合室に戻る」ボタンを出す (再戦用) */
+function netBackButtonHtml() {
+  if (typeof NET === 'undefined' || !NET || NET.mode !== 'host' || !NET.started) return '';
+  return '<button id="btn-net-back" onclick="netHostBackToWaiting()">待合室に戻る（同じメンバーで再戦）</button>';
+}
 function endMatch(reason) {
   G.over = true;
   if (S.variant === 'sashi') {
     var rowsS = [0, 2].map(function (i) { return G.players[i]; }).sort(function (a, b) { return b.score - a.score; })
       .map(function (p2, rank) { return '<tr><td>' + (rank + 1) + '位</td><td>' + p2.name + '</td><td>' + p2.score + '点</td><td></td></tr>'; }).join('');
     showModal('<h3>対戦終了' + (reason ? '（' + reason + '）' : '') + '</h3><table class="result">' + rowsS + '</table>' +
-      '<div class="modal-btns"><button onclick="hideModal();document.getElementById(\'settings-panel\').scrollIntoView();">設定に戻る</button></div>');
+      '<div class="modal-btns"><button onclick="hideModal();document.getElementById(\'settings-panel\').scrollIntoView();">設定に戻る</button>' + netBackButtonHtml() + '</div>');
     log('対戦終了: ' + (reason || ''));
     renderAll();
     return;
@@ -7254,7 +7301,7 @@ function endMatch(reason) {
       (teamA === teamB ? '引き分け' : (teamA > teamB ? G.players[0].name + '＆' + G.players[2].name : G.players[1].name + '＆' + G.players[3].name)) + '</b></p>';
   }
   showModal('<h3>対戦終了' + (reason ? '（' + reason + '）' : '') + '</h3><table class="result">' + rows + '</table>' + teamHtml +
-    '<div class="modal-btns"><button onclick="hideModal();document.getElementById(\'settings-panel\').scrollIntoView();">設定に戻る</button></div>');
+    '<div class="modal-btns"><button onclick="hideModal();document.getElementById(\'settings-panel\').scrollIntoView();">設定に戻る</button>' + netBackButtonHtml() + '</div>');
   netBroadcastModal($('modal-box').innerHTML);
   log('対戦終了: ' + (reason || ''));
   renderAll();
@@ -7323,6 +7370,28 @@ function cpuPlanDiscard(pi) {
   best.sort(function (a, b) { return b.ukeire - a.ukeire; });
   var topUke = best.length ? best[0].ukeire : 0;
   best = best.filter(function (c) { return c.ukeire >= topUke - 2; });
+  // オープンリーチへの振り込み回避 (bd指示 2026-11-22): オープンリーチは手牌が公開されて
+  // 待ちが正確に分かるので、その待ち牌は「確定の振り込み」として扱う。待ち牌でない候補が
+  // 1つでもある限り待ち牌は切らない (相手がフリテンのときは当たらないので対象外)。
+  // 通常 (非公開) リーチには適用しない。
+  var openDanger = null;
+  G.players.forEach(function (q, qi) {
+    if (qi === pi || !q.openRiichi || isFuriten(q)) return;
+    playerWaits(q).forEach(function (wt) { (openDanger = openDanger || {})[wt] = true; });
+  });
+  if (openDanger) {
+    var ndBest = best.filter(function (c) { return !openDanger[c.tile.t]; });
+    if (ndBest.length) best = ndBest;
+    else {
+      // シャンテン最速の候補が全部振り込み牌でも、安全な牌が手にあればそちらを優先する
+      var ndAll = candidates.filter(function (c) { return !openDanger[c.tile.t]; });
+      if (ndAll.length) {
+        var ndMin = Math.min.apply(null, ndAll.map(function (c) { return c.shantenAfter; }));
+        best = ndAll.filter(function (c) { return c.shantenAfter === ndMin; });
+      }
+      // 候補が全部振り込み牌なら従来通りの選択にフォールバックする
+    }
+  }
   // 守備: 誰かリーチ (またはサバイバルで宣言者) がいて自分が2シャンテン以上なら現物を優先
   var danger = G.players.some(function (q, qi) { return qi !== pi && (q.riichi || (S.variant === 'survival' && q.declared)); });
   if (danger && minSh >= 2) {
@@ -8109,8 +8178,22 @@ function netHostStart() {
   netRefreshSeatsView();
   renderAll();
 }
+/* 対戦終了後、同じ卓・同じメンバーのまま待合室へ戻る (bd指示 2026-11-22: 再戦は接続し直さずに)。
+   ホストが押すと中継が卓の状態を「対戦中」から戻し、ゲスト全員も自動で待合室に戻る。
+   待合室では通常の設定画面でルール変更ができ、そのまま「対戦開始」で再戦できる。 */
+function netHostBackToWaiting() {
+  if (NET.mode !== 'host' || !NET.started || !G || !G.over) return;
+  NET.started = false;
+  netSendTable({ t: 'back' });
+  hideModal();
+  var mc = $('net-match-chat'); if (mc) mc.classList.add('hidden');
+  $('net-panel').classList.remove('hidden');
+  netShowTableView();
+  netSendRoster();
+}
 /* ゲスト側 */
 function netGuestOnTableMsg(m) {
+  if (m.t === 'back') { netGuestBackToWaiting(); return; }
   if (m.t === 'start') { netGuestStart(m); return; }
   if (m.t === 'snap') {
     if (!m.data) return;
@@ -8132,6 +8215,21 @@ function netGuestOnTableMsg(m) {
     var b2 = $('btn-net-close2'); if (b2) b2.addEventListener('click', hideModal);
     return;
   }
+}
+/* ゲスト側: ホストが待合室へ戻した通知を受けて、自分も待合室表示に戻る (席とトークンは保持) */
+function netGuestBackToWaiting() {
+  NET.started = false;
+  NET.guestPrompt = null;
+  NET.guestInfoModal = false;
+  hideModal();
+  if (G) {
+    G.pending = null; G.discardWait = null; G.pendingDiscard = null;
+    G.netPick = null; G.centerWait = null; G.exchangePut = null; G.pickWait = null;
+  }
+  renderActions();
+  var mc = $('net-match-chat'); if (mc) mc.classList.add('hidden');
+  $('net-panel').classList.remove('hidden');
+  netShowTableView();
 }
 function netGuestStart(m) {
   NET.mode = 'guest';
@@ -8220,6 +8318,17 @@ function netGuestAnswer(id, value) {
 }
 
 /* ---------- ロビー/卓 UI ---------- */
+// チャット入力の Enter 送信 (bd指示 2026-11-22): IME変換中の Enter (isComposing / keyCode 229) は
+// 確定操作なので送信しない。送信後も入力欄にフォーカスが残るので続けて打てる。
+function netEnterSend(inp, sendFn) {
+  if (!inp) return;
+  inp.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.keyCode !== 13) return;
+    if (e.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+    sendFn();
+  });
+}
 function netChatAppendTo(el, name, text) {
   if (!el) return;
   var div = document.createElement('div');
@@ -8267,6 +8376,7 @@ function netRenderMembers() {
   }
   el.innerHTML = lines.map(function (s) { return '<div>' + s + '</div>'; }).join('');
   var sb = $('net-start'); if (sb) sb.style.display = (NET.mode === 'host') ? '' : 'none';
+  var bb = $('net-back'); if (bb) bb.style.display = (NET.mode === 'host' && NET.started && typeof G !== 'undefined' && G && G.over) ? '' : 'none';
   var tt = $('net-table-title'); if (tt) tt.textContent = '卓: ' + (NET.tableId || '');
 }
 function netShowTableView() {
@@ -8333,21 +8443,26 @@ function netInit() {
   });
   $('net-create').addEventListener('click', netCreateTable);
   $('net-start').addEventListener('click', netHostStart);
+  var nbk = $('net-back'); if (nbk) nbk.addEventListener('click', netHostBackToWaiting);
   $('net-leave').addEventListener('click', netLeaveTable);
-  $('net-lobby-chat-send').addEventListener('click', function () {
+  var sendLobbyChat = function () {
     var inp = $('net-lobby-chat-input'); var text = inp.value.trim(); if (!text) return; inp.value = '';
     netSendLobby({ t: 'chat', text: text });
-  });
-  $('net-table-chat-send').addEventListener('click', function () {
+  };
+  $('net-lobby-chat-send').addEventListener('click', sendLobbyChat);
+  netEnterSend($('net-lobby-chat-input'), sendLobbyChat);
+  var sendTableChat = function () {
     var inp = $('net-table-chat-input'); var text = inp.value.trim(); if (!text) return; inp.value = '';
     netSendTable({ t: 'chat', text: text });
-  });
+  };
+  $('net-table-chat-send').addEventListener('click', sendTableChat);
+  netEnterSend($('net-table-chat-input'), sendTableChat);
   // 対局中の卓チャット小窓
   var mSend = $('net-match-chat-send'), mInp = $('net-match-chat-input'), mTgl = $('net-match-chat-toggle');
   if (mSend && mInp) {
     var sendMatch = function () { var text = mInp.value.trim(); if (!text) return; mInp.value = ''; netSendTable({ t: 'chat', text: text }); };
     mSend.addEventListener('click', sendMatch);
-    mInp.addEventListener('keydown', function (e) { if (e.key === 'Enter') sendMatch(); });
+    netEnterSend(mInp, sendMatch);
   }
   if (mTgl) mTgl.addEventListener('click', function () {
     var body = $('net-match-chat-body'); if (body) body.classList.toggle('hidden');
