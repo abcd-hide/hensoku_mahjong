@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-23-118]</title>
+<title>変則麻雀 [build 2026-11-23-119]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -245,7 +245,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-23-118</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-23-119</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -1296,7 +1296,7 @@ var VARIANT_DESC = {
   narabe: '捨て牌が5/10/15枚になるたび、その枚数だけ手牌をオープン（足りない分は1枚1000点を供託、リーチ後はオープン免除で供託のみ）。通常の捨て牌の代わりに右側パネルのボードへ7並べ式に並べられる（数牌は5から、字牌は北から、同じ種類は1枚まで）。リーチで切る牌が並べられる場合は並べてリーチもできる。メンツを一気に並べると2枚ツモる。並べた牌も鳴き/ロン可（メンツはロンのみ）。列を完成させると1000→2000→3000オール。ジョーカー4枚入り（単独では置けず、今並べられる位置の1つ先の牌やメンツと一緒に置く。置いた分だけツモる。誰かの河に捨てて交換も可）。食い上がり（鳴き1つ=+1翻）採用。',
   bridge: '配牌は全員13枚。親から4枚を1枚ずつドラフトし、取った人から順に1枚ずつ捨ててトリックテイキングで勝者を決め、勝者が次の4枚を取る。フォロー義務なし。強さは 自分の風牌（最強）＞ドラ＞セーム1（全員同種のときの1）＞ドラの色違い＞数牌（大）＞字牌。特典のない字牌は勝敗無関係。ポン/チー可。この順でまだ捨てていない人は先手の牌で上がれない（フリテンにはなる）。',
   chain: 'タッグが基本。ツモ後に相方と1枚交換してから捨てる。リーチ/「固定」した人はツモ牌を相方と交換して受け取った牌を切り、その相方は交換しない。上がると「チェイン（続行）」か「ストップ（局終了）」を宣言し、相手チームは2人×2000点で却下できる（チェイン却下=その上がりのみ成立、ストップ却下=+1翻で保留し続行）。チェイン中に相方が上がると最初の翻数が加算される。混清は-1翻、国士は8翻、二人の色数の合計7色で+1翻/8色で+2翻（レインボー）。',
-  uno: '自分の番はツモか捨てるのどちらか1つだけ。捨て牌は直前の捨て牌と同じ種類か同じ数字のみ（赤5はその種の0）。白はワイルド（いつでも出せて次の種類を選べる）、中はDraw4、1はスキップ、2はDraw2、9はリバースで、Drawは引くまで蓄積される。同じ数字（と風牌同士）は何枚でもまとめて捨てられる。上がりは手牌2/5/8/11/14枚のとき可能で、3枚少ないごとに-1翻。手牌を捨て切るUNO上がりは、1枚で宣言していれば満貫、なければ3900点。リーチ後は制限なしでDrawも効かない。',
+  uno: '自分の番はツモか捨てるのどちらか1つだけ。捨て牌は直前の捨て牌と同じ種類か同じ数字のみ。白は筒子の0、發は索子の0、中は萬子の0。東はDraw4、南・西・北はワイルド（東南西北はいつでも出せて、次の種類を選べる）、1はスキップ、2はDraw2、9はリバースで、Drawは引くまで蓄積される（Draw2には2か東、Draw4には東でのみカウンター可）。同じ数字（と風牌同士）は何枚でもまとめて捨てられる。上がりは手牌2/5/8/11/14枚のとき可能で、3枚少ないごとに-1翻。手牌を捨て切るUNO上がりは、1枚で宣言していれば満貫、なければ3900点。リーチ後は制限なしでDrawも効かない。',
   poverty: '前局の勝者が大富豪、振り込み者が大貧民となり、配牌後に交換を行う（ツモなら全員と1枚ずつ、流局ならテンパイ=富豪/ノーテン=貧民）。大富豪は欲しい牌を1種宣言でき、あげる側はあればその牌、無ければドラに一番近い牌を出す。大富豪の白はマイナス1翻なしのオールマイティ。8切り=もう1回自分の番、革命=同数4枚か同種連番4枚を続けると自分の番が4回、縛り=同種3連続でその種かツモ切りだけになる。',
   group: '対面と2対2のチーム戦。捨て牌の種類で次のツモ番が決まる（字牌=自分、萬子=下家、筒子=対面、索子=上家）。筒子のメンゼンメンツは+1翻（マル、ロンで完成した分は除く）、字牌の役は全て2倍。一発は誰かが鳴くまで続き、最終順位点込みのチーム合計で勝敗を決める。'
 };
@@ -1522,7 +1522,7 @@ function nextHand(first) {
   G.players.forEach(function (p) { sortHand(p); });
   G.current = G.dealer;
   log('―― ' + roundName() + (G.honba ? ' ' + G.honba + '本場' : '') + ' 開始 ――');
-  G.discardStream = []; G.forcedTurns = null; G.shibari = null; G.lastRevolutionEnd = 0; G.shibariRestrict = null; G.justCalledPi = null; G.unoDir = 1; G.unoTop = null; G.unoPending = 0; G.chainOut = {}; G.chainPending = {}; G.chainContinued = false; G.chainLastTeam = -1; G.chainResumePi = 0; G.bridgeNoRon = null; G.bridgePlayed = {}; G.napoleon = null; G.napoleonPhaseDone = false; G.napoleonStarter = -1; G.narabeBoard = { man: { counts: {}, jokers: {} }, pin: { counts: {}, jokers: {} }, sou: { counts: {}, jokers: {} }, honor: { counts: {}, jokers: {} } }; G.narabeRowsDone = 0; G.narabeRowDone = {}; G.narabeSelected = null;
+  G.discardStream = []; G.forcedTurns = null; G.shibari = null; G.lastRevolutionEnd = 0; G.shibariRestrict = null; G.justCalledPi = null; G.unoDir = 1; G.unoTop = null; G.unoPending = 0; G.unoPending4 = false; G.chainOut = {}; G.chainPending = {}; G.chainContinued = false; G.chainLastTeam = -1; G.chainResumePi = 0; G.bridgeNoRon = null; G.bridgePlayed = {}; G.napoleon = null; G.napoleonPhaseDone = false; G.napoleonStarter = -1; G.narabeBoard = { man: { counts: {}, jokers: {} }, pin: { counts: {}, jokers: {} }, sou: { counts: {}, jokers: {} }, honor: { counts: {}, jokers: {} } }; G.narabeRowsDone = 0; G.narabeRowDone = {}; G.narabeSelected = null;
   renderAll();
   if (S.variant === 'poverty' && G.nextPoverty && G.nextPoverty.kind !== 'none') {
     povertyExchangePhase().then(function () { playLoop(); });
@@ -5506,44 +5506,51 @@ async function chainHandleWin(win) {
 
 /* ================= UNO麻雀 =================
    自分の番には「ツモ」か「捨てる」のどちらか1つだけ (リーチ後を除く)。
-   捨て牌は、直前の捨て牌と同じ種類か同じ数字でなければならない。赤5はその種の「0」として扱う。
-   白はワイルド (いつでも出せて、次の種類を選べる)、中は Draw4。数字の 1 はスキップ、
-   2 は Draw2、9 はリバース。Draw 効果は誰かが引くまで蓄積される (カウンターの Draw 牌で重ねられる)。
+   捨て牌は、直前の捨て牌と同じ種類か同じ数字でなければならない。
+   白は筒子の0、發は索子の0、中は萬子の0として扱う。東は Draw4、南・西・北はワイルド。
+   東南西北はいつでも出すことができ、出したら次に出さなくてはならない牌の種類を選べる。
+   数字の 1 はスキップ、2 は Draw2、9 はリバース。Draw 効果は誰かが引くまで蓄積される
+   (Draw2 には 2 か東、Draw4 が混ざった蓄積には東でのみカウンターできる)。
    同じ数字の牌 (および風牌同士) は何枚でもまとめて捨てられる。鳴き (ポン/チー/カン) はなし。
    通常の上がりは手牌 2,5,8,11,14 枚のとき可能で、14枚から3枚少ないごとに-1翻 (役満は13翻扱い)。
    手牌を全部捨て切る UNO 上がり: 1枚のときに UNO を宣言していれば満貫、なければ3900点ツモ扱い。
-   ただし風牌を捨てて空にしても上がりにならない。
-   ※原典リストではワイルド/Draw4 の牌が画像で示されており読み取れなかったため、白=ワイルド/中=Draw4 とした。 */
-function unoEffNum(tile) { return tile.red ? 0 : (tile.t % 9) + 1; }
+   ただし東南西北を捨てて空にしても上がりにならない。赤5は通常の5。
+   ※特殊牌の割り当ては原典サイト (UNO.html) の文章どおり。 */
+function unoEffNum(tile) {
+  if (tile.t < 27) return (tile.t % 9) + 1; // 赤5も通常の5
+  if (tile.t >= 31) return 0; // 白=筒子の0, 發=索子の0, 中=萬子の0
+  return null; // 風牌に数字はない
+}
+function unoEffSuit(tile) {
+  if (tile.t < 27) return Math.floor(tile.t / 9);
+  if (tile.t === 31) return 1; // 白は筒子
+  if (tile.t === 32) return 2; // 發は索子
+  if (tile.t === 33) return 0; // 中は萬子
+  return 'wind';
+}
 function unoBatchKey(tile) {
-  if (tile.t < 27) return 'n' + unoEffNum(tile);
-  if (tile.t < 31) return 'wind';
-  return 't' + tile.t;
+  if (tile.t >= 27 && tile.t < 31) return 'wind';
+  return 'n' + unoEffNum(tile); // 0牌 (白/發/中) は 'n0' としてまとめて捨てられる
 }
 function unoMatchesTop(tile) {
-  if (tile.t === 31 || tile.t === 33) return true;
+  if (tile.t >= 27 && tile.t < 31) return true; // 東南西北はいつでも出せる
   var top = G.unoTop;
   if (!top) return true;
-  if (tile.t < 27) {
-    if (top.num !== null && top.num !== undefined && unoEffNum(tile) === top.num) return true;
-    if (top.group !== null && top.group !== undefined && Math.floor(tile.t / 9) === top.group) return true;
-    return false;
-  }
-  if (tile.t < 31) return top.group === 'wind';
-  return top.group === 'dragon';
+  if (top.num !== null && top.num !== undefined && unoEffNum(tile) === top.num) return true;
+  if (typeof top.group === 'number' && unoEffSuit(tile) === top.group) return true;
+  return false;
 }
 function unoTopFromBatch(tiles) {
   var t0 = tiles[0];
   if (t0.t >= 27 && t0.t < 31) return { group: 'wind', num: null };
-  if (t0.t >= 31) return { group: 'dragon', num: null };
-  var suits = tiles.map(function (t) { return Math.floor(t.t / 9); });
+  var suits = tiles.map(function (t) { return unoEffSuit(t); });
   var sameSuit = suits.every(function (s) { return s === suits[0]; });
   return { group: sameSuit ? suits[0] : null, num: unoEffNum(t0) };
 }
 function unoBatchEffects(tiles) {
-  var e = { draw: 0, skip: 0, reverse: false };
+  var e = { draw: 0, skip: 0, reverse: false, draw4: false };
   tiles.forEach(function (t) {
-    if (t.t === 33) e.draw += 4;
+    if (t.t === 27) { e.draw += 4; e.draw4 = true; } // 東 = Draw4
     else if (t.t < 27) {
       var n = unoEffNum(t);
       if (n === 2) e.draw += 2;
@@ -5684,13 +5691,15 @@ async function unoChooseSuit(pi) {
   var p = G.players[pi];
   if (p.isHuman) {
     NET.promptSeat = pi;
-    var ans = await modalChoice('<h3>ワイルド</h3><p>次の牌の種類を選んでください</p>',
-      [{ label: '萬子', value: 0 }, { label: '筒子', value: 1 }, { label: '索子', value: 2 }]);
-    return Number(ans) || 0;
+    var ans = await modalChoice('<h3>種類の選択</h3><p>次に出さなくてはならない牌の種類を選んでください</p>',
+      [{ label: '萬子', value: 0 }, { label: '筒子', value: 1 }, { label: '索子', value: 2 }, { label: '字牌', value: 'wind' }]);
+    return ans === 'wind' ? 'wind' : (Number(ans) || 0);
   }
-  var cnt = [0, 0, 0];
-  p.hand.forEach(function (t) { if (t.t < 27) cnt[Math.floor(t.t / 9)]++; });
-  return cnt.indexOf(Math.max(cnt[0], cnt[1], cnt[2]));
+  var cnt = [0, 0, 0], winds = 0;
+  p.hand.forEach(function (t) { if (t.t < 27) cnt[Math.floor(t.t / 9)]++; else if (t.t < 31) winds++; });
+  var best = cnt.indexOf(Math.max(cnt[0], cnt[1], cnt[2]));
+  if (winds > cnt[best]) return 'wind';
+  return best;
 }
 async function unoPickBatch(pi, firstTile) {
   var p = G.players[pi];
@@ -5788,16 +5797,20 @@ async function unoDoDiscard(pi, tiles, declareRiichi) {
   var winners = await unoResolveRons(pi, tiles);
   if (winners) return 'win';
   var eff = unoBatchEffects(tiles);
-  if (tiles.some(function (t) { return t.t === 31; })) {
+  if (tiles.some(function (t) { return t.t >= 27 && t.t < 31; })) {
     var suit = await unoChooseSuit(pi);
     G.unoTop = { group: suit, num: null };
-    log('ワイルド: 次に合わせる種類は ' + ['萬子', '筒子', '索子'][suit]);
+    log('種類選択: 次に合わせる種類は ' + ({ 0: '萬子', 1: '筒子', 2: '索子', wind: '字牌' })[suit]);
   } else {
     G.unoTop = unoTopFromBatch(tiles);
   }
   if (!wasRiichi) {
     if (eff.reverse) { G.unoDir = -G.unoDir; log('リバース！ 順番が逆回りになった'); }
-    if (eff.draw > 0) { G.unoPending += eff.draw; log('Draw 蓄積: 次の人は ' + G.unoPending + '枚引くかカウンターを出す'); }
+    if (eff.draw > 0) {
+      G.unoPending += eff.draw;
+      if (eff.draw4) G.unoPending4 = true;
+      log('Draw 蓄積: 次の人は ' + G.unoPending + '枚引くかカウンターを出す' + (G.unoPending4 ? '（Draw4混在: カウンターは東のみ）' : ''));
+    }
     return unoStep(pi, eff.skip);
   }
   return unoStep(pi, 0);
@@ -5808,11 +5821,16 @@ async function unoPendingAction(pi) {
   async function drawCards() {
     var n = Math.min(need, G.wall.length);
     for (var i = 0; i < n; i++) { var d = await doDraw(pi, false); if (!d) break; }
-    G.unoPending = 0;
+    G.unoPending = 0; G.unoPending4 = false;
     log(p.name + ' は ' + n + '枚引いた');
     return 'drawn';
   }
-  var counters = p.hand.filter(function (t) { return t.t === 31 || t.t === 33 || (t.t < 27 && unoEffNum(t) === 2); });
+  // カウンター: 東 (Draw4) は常時可。2 (Draw2) は Draw4 が混ざっていない蓄積にだけ可
+  var counters = p.hand.filter(function (t) {
+    if (t.t === 27) return true;
+    if (G.unoPending4) return false;
+    return t.t < 27 && unoEffNum(t) === 2;
+  });
   if (!counters.length) return drawCards();
   if (p.isHuman) {
     G.pendingDiscard = { restrict: counters.map(function (t) { return t.id; }) };
@@ -5837,7 +5855,7 @@ async function unoPendingAction(pi) {
 async function unoTurn(pi) {
   var p = G.players[pi];
   if (p.riichi) {
-    G.unoPending = 0;
+    G.unoPending = 0; G.unoPending4 = false;
     var drawnR = await doDraw(pi, false);
     if (!drawnR) { await doRyukyoku(); return 'win'; }
     var evR = evalUno(p, null, true);
@@ -8963,10 +8981,8 @@ var RULE_PAGES = [
   "id": "uno",
   "name": "UNO麻雀",
   "summary": "ツモか捨てるのどちらか。色か数字を合わせる",
-  "body": "<p>この麻雀では自分の番にツモと牌を捨てるという二つの行動の内1つしかできない（リーチ後を除く）。<br>また、捨て牌には制限があり、前に捨てられた牌と同じ種類または同じ数字でないと捨てられない。<br>ただし、{{tile:31}}は筒子の0、{{tile:32}}は索子の0、{{tile:33}}は萬子の0として扱う。<br>また、{{tile:27}}はDraw4、{{tile:28}}{{tile:29}}{{tile:30}}はWildCardである。<br>つまり、{{tile:27}}{{tile:28}}{{tile:29}}{{tile:30}}は\nいつ出すこともでき、出したら次に出さなくてはならない牌の種類を選ぶことができる。<br>さらに、{{tile:27}}の場合は{{tile:27}}を出さない限りは４枚引かなくてはならない。<br>さらに、全ての種類の牌において1がスキップ(順番を一人飛ばす)、<br>2がDraw2(次の人はDraw2あるいはDraw4を出さない限り２枚引かなくてはならない)、9がReverse(順番が逆まわりになる)である。<br>Draw2やDraw4はだれかが牌を引くまで効果が蓄積される。<br>例えば2が３枚出た後{{tile:27}}が出た場合は次の人は\n{{tile:27}}を出すか１０枚引くかである。{{note:specials}}\n</p><br><p>リーチ時にはこれらの制限から開放され、Draw2なども効かない。<br>自分の番には１枚ツモってツモるかツモ切りするかである。\n</p><br><p>捨てるときには同じ数字は何枚でも捨てられる。東南西北も何枚でも一気に出せる。</p><br><p>通常のあがりは2枚+3x枚(2,5,8,11...枚。ただし、ロン上がりのときは1,4,7,10...枚)のときに可能である。<br>ただし、14枚より3枚少ないごとに1翻減らして考える(役満は13翻扱い)。<br>手牌を無くしてあがる（UNOあがり）のときは、1枚にしてUNOを宣言してあがったときは満貫、<br>そうでなければ子で3900（1000,2000）のツモあがり扱い。<br>ただし、あがりは、東、南、西、北では認められない。</p><br><br>",
-  "notes": {
-   "specials": "アプリでは特殊牌の割り当てが原典と異なります。白がワイルド（いつでも出せて、次の種類を選べます）、中がDraw4で、東・南・西・北はワイルドではなく風牌同士で合わせる牌として扱います。また、赤5はその色の「0」として扱います（原典リストでは特殊牌が画像で示されていて読み取れなかったため、アプリ側で決めた割り当てです）。"
-  }
+  "body": "<p>この麻雀では自分の番にツモと牌を捨てるという二つの行動の内1つしかできない（リーチ後を除く）。<br>また、捨て牌には制限があり、前に捨てられた牌と同じ種類または同じ数字でないと捨てられない。<br>ただし、{{tile:31}}は筒子の0、{{tile:32}}は索子の0、{{tile:33}}は萬子の0として扱う。<br>また、{{tile:27}}はDraw4、{{tile:28}}{{tile:29}}{{tile:30}}はWildCardである。<br>つまり、{{tile:27}}{{tile:28}}{{tile:29}}{{tile:30}}は\nいつ出すこともでき、出したら次に出さなくてはならない牌の種類を選ぶことができる。<br>さらに、{{tile:27}}の場合は{{tile:27}}を出さない限りは４枚引かなくてはならない。<br>さらに、全ての種類の牌において1がスキップ(順番を一人飛ばす)、<br>2がDraw2(次の人はDraw2あるいはDraw4を出さない限り２枚引かなくてはならない)、9がReverse(順番が逆まわりになる)である。<br>Draw2やDraw4はだれかが牌を引くまで効果が蓄積される。<br>例えば2が３枚出た後{{tile:27}}が出た場合は次の人は\n{{tile:27}}を出すか１０枚引くかである。\n</p><br><p>リーチ時にはこれらの制限から開放され、Draw2なども効かない。<br>自分の番には１枚ツモってツモるかツモ切りするかである。\n</p><br><p>捨てるときには同じ数字は何枚でも捨てられる。東南西北も何枚でも一気に出せる。</p><br><p>通常のあがりは2枚+3x枚(2,5,8,11...枚。ただし、ロン上がりのときは1,4,7,10...枚)のときに可能である。<br>ただし、14枚より3枚少ないごとに1翻減らして考える(役満は13翻扱い)。<br>手牌を無くしてあがる（UNOあがり）のときは、1枚にしてUNOを宣言してあがったときは満貫、<br>そうでなければ子で3900（1000,2000）のツモあがり扱い。<br>ただし、あがりは、東、南、西、北では認められない。</p><br><br>",
+  "notes": {}
  },
  {
   "id": "chain",
