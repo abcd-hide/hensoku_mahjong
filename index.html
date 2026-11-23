@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-23-119]</title>
+<title>変則麻雀 [build 2026-11-24-120]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -83,6 +83,7 @@ legend { font-weight: bold; padding: 0 6px; }
 .seat.active .pscore { color: #7a2d00; }
 .flags span { background: #0c2c1b; color: #f2f2e8; border-radius: 4px; padding: 1px 6px; margin-right: 4px; font-size: .75em; }
 .flags .riichi { background: #b3312a; color: #fff; }
+.flags .wareme { background: #e67e22; color: #fff; font-weight: bold; }
 .flags .ability { background: #5b3a9e; color: #fff; }
 .srow { display: flex; align-items: flex-end; justify-content: center; gap: 1em; width: 100%; }
 .shand { display: flex; gap: .26em; }
@@ -245,7 +246,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-23-119</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-24-120</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -353,6 +354,22 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
         <select id="set-rpabilities">
           <option value="1">1つのみ</option>
           <option value="2">2つまで</option>
+        </select></label>
+      <label>チェイン: 方式
+        <select id="set-chainmode">
+          <option value="current">現行（宣言・却下2000点）</option>
+          <option value="revised">改正案（ストップ却下3000点・+1翻なし）</option>
+          <option value="improved">改善案（宣言なし・2人上がるまで）</option>
+        </select></label>
+      <label>ダウト系: 点数
+        <select id="set-doubtscore">
+          <option value="normal">通常の設定</option>
+          <option value="original">原典推奨（ダウト15000・タッグ18000）</option>
+        </select></label>
+      <label>ダウト系: 追加ルール
+        <select id="set-doubtextra">
+          <option value="off">なし</option>
+          <option value="on">あり（ダウトロン別判定・割れ目）</option>
         </select></label>
       <p class="note">サバイバルは原典通り10000点持ち・点数は減る一方、ドボンで終了。</p>
     </fieldset>
@@ -1295,7 +1312,7 @@ var VARIANT_DESC = {
   napoleon: '配牌後にビット（点数＋切札。強さはノートランプ＞字牌＞萬子＞筒子＞索子）でナポレオンを決める。ナポレオンは裏ドラ牌を1枚仕込むことができ、副官牌を指定する（持ち主が秘密の副官）。全員4枚ツモって13枚に切り、ナポレオンの下家から開始。ナポレオンはビット以上の点数でないと上がれない。切札の色の面子を自力でそろえるとドラ1扱い（鳴いた面子とロンで当たった面子は除く）。ロンのときは追加移動: ナポレオン軍のロンなら振り込み者がナポレオンへ1/2・副官へ1/4を追加で払い、反乱軍のロンならナポレオンが1/2・副官が1/4を上がった人へ払う。',
   narabe: '捨て牌が5/10/15枚になるたび、その枚数だけ手牌をオープン（足りない分は1枚1000点を供託、リーチ後はオープン免除で供託のみ）。通常の捨て牌の代わりに右側パネルのボードへ7並べ式に並べられる（数牌は5から、字牌は北から、同じ種類は1枚まで）。リーチで切る牌が並べられる場合は並べてリーチもできる。メンツを一気に並べると2枚ツモる。並べた牌も鳴き/ロン可（メンツはロンのみ）。列を完成させると1000→2000→3000オール。ジョーカー4枚入り（単独では置けず、今並べられる位置の1つ先の牌やメンツと一緒に置く。置いた分だけツモる。誰かの河に捨てて交換も可）。食い上がり（鳴き1つ=+1翻）採用。',
   bridge: '配牌は全員13枚。親から4枚を1枚ずつドラフトし、取った人から順に1枚ずつ捨ててトリックテイキングで勝者を決め、勝者が次の4枚を取る。フォロー義務なし。強さは 自分の風牌（最強）＞ドラ＞セーム1（全員同種のときの1）＞ドラの色違い＞数牌（大）＞字牌。特典のない字牌は勝敗無関係。ポン/チー可。この順でまだ捨てていない人は先手の牌で上がれない（フリテンにはなる）。',
-  chain: 'タッグが基本。ツモ後に相方と1枚交換してから捨てる。リーチ/「固定」した人はツモ牌を相方と交換して受け取った牌を切り、その相方は交換しない。上がると「チェイン（続行）」か「ストップ（局終了）」を宣言し、相手チームは2人×2000点で却下できる（チェイン却下=その上がりのみ成立、ストップ却下=+1翻で保留し続行）。チェイン中に相方が上がると最初の翻数が加算される。混清は-1翻、国士は8翻、二人の色数の合計7色で+1翻/8色で+2翻（レインボー）。',
+  chain: 'タッグが基本。ツモ後に相方と1枚交換してから捨てる。リーチ/「固定」した人はツモ牌を相方と交換して受け取った牌を切り、その相方は交換しない。上がると「チェイン（続行）」か「ストップ（局終了）」を宣言し、相手チームは2人×2000点で却下できる（チェイン却下=その上がりのみ成立、ストップ却下=+1翻で保留し続行）。チェイン中に相方が上がると最初の翻数が加算される。混清は-1翻、国士は8翻、二人の色数の合計7色で+1翻/8色で+2翻（レインボー）。方式は設定で現行/改正案（ストップ却下3000点・+1翻なし）/改善案（宣言・却下なし、1-3人目のペアはボーナス半分・切り上げ）から選べます。',
   uno: '自分の番はツモか捨てるのどちらか1つだけ。捨て牌は直前の捨て牌と同じ種類か同じ数字のみ。白は筒子の0、發は索子の0、中は萬子の0。東はDraw4、南・西・北はワイルド（東南西北はいつでも出せて、次の種類を選べる）、1はスキップ、2はDraw2、9はリバースで、Drawは引くまで蓄積される（Draw2には2か東、Draw4には東でのみカウンター可）。同じ数字（と風牌同士）は何枚でもまとめて捨てられる。上がりは手牌2/5/8/11/14枚のとき可能で、3枚少ないごとに-1翻。手牌を捨て切るUNO上がりは、1枚で宣言していれば満貫、なければ3900点。リーチ後は制限なしでDrawも効かない。',
   poverty: '前局の勝者が大富豪、振り込み者が大貧民となり、配牌後に交換を行う（ツモなら全員と1枚ずつ、流局ならテンパイ=富豪/ノーテン=貧民）。大富豪は欲しい牌を1種宣言でき、あげる側はあればその牌、無ければドラに一番近い牌を出す。大富豪の白はマイナス1翻なしのオールマイティ。8切り=もう1回自分の番、革命=同数4枚か同種連番4枚を続けると自分の番が4回、縛り=同種3連続でその種かツモ切りだけになる。',
   group: '対面と2対2のチーム戦。捨て牌の種類で次のツモ番が決まる（字牌=自分、萬子=下家、筒子=対面、索子=上家）。筒子のメンゼンメンツは+1翻（マル、ロンで完成した分は除く）、字牌の役は全て2倍。一発は誰かが鳴くまで続き、最終順位点込みのチーム合計で勝敗を決める。'
@@ -1308,7 +1325,10 @@ var DEFAULT_SETTINGS = {
   noCall: false, // 鳴きなしフラグ: ONの間、他家の捨て牌への鳴きは自動でパスする
   noDoubtClaim: false, // ダウト主張なしフラグ: ONの間、ダウトの主張は自動でパスする (鳴きなしとは別ボタン)
   doubtWilds: 4, // ダウト系のオールマイティ枚数 (4 or 8)
-  doubtWildKind: 'five', roleplayAbilities: 1 // ダウト系の万能牌の種類: 'five' = 5, 'flower' = 春夏秋冬
+  doubtWildKind: 'five', roleplayAbilities: 1, // ダウト系の万能牌の種類: 'five' = 5, 'flower' = 春夏秋冬
+  chainMode: 'current', // チェインの方式: 'current' 現行 / 'revised' 改正案(2003) / 'improved' 改善案(2024)
+  doubtScore: 'normal', // ダウト系の点数: 'normal' 通常設定 / 'original' 原典推奨 (ダウト15000/15000・ダウトタッグ18000/20000)
+  doubtExtra: false // ダウト追加ルール (ダウトロン別判定2000点固定・ダウト割れ目): true で有効
 };
 var S = loadSettings();
 function loadSettings() {
@@ -1522,7 +1542,10 @@ function nextHand(first) {
   G.players.forEach(function (p) { sortHand(p); });
   G.current = G.dealer;
   log('―― ' + roundName() + (G.honba ? ' ' + G.honba + '本場' : '') + ' 開始 ――');
-  G.discardStream = []; G.forcedTurns = null; G.shibari = null; G.lastRevolutionEnd = 0; G.shibariRestrict = null; G.justCalledPi = null; G.unoDir = 1; G.unoTop = null; G.unoPending = 0; G.unoPending4 = false; G.chainOut = {}; G.chainPending = {}; G.chainContinued = false; G.chainLastTeam = -1; G.chainResumePi = 0; G.bridgeNoRon = null; G.bridgePlayed = {}; G.napoleon = null; G.napoleonPhaseDone = false; G.napoleonStarter = -1; G.narabeBoard = { man: { counts: {}, jokers: {} }, pin: { counts: {}, jokers: {} }, sou: { counts: {}, jokers: {} }, honor: { counts: {}, jokers: {} } }; G.narabeRowsDone = 0; G.narabeRowDone = {}; G.narabeSelected = null;
+  G.discardStream = []; G.forcedTurns = null; G.shibari = null; G.lastRevolutionEnd = 0; G.shibariRestrict = null; G.justCalledPi = null; G.unoDir = 1; G.unoTop = null; G.unoPending = 0; G.unoPending4 = false; G.chainOut = {}; G.chainPending = {}; G.chainContinued = false; G.chainLastTeam = -1; G.chainResumePi = 0; G.chainWinOrder = []; G.bridgeNoRon = null; G.bridgePlayed = {}; G.napoleon = null; G.napoleonPhaseDone = false; G.napoleonStarter = -1; G.narabeBoard = { man: { counts: {}, jokers: {} }, pin: { counts: {}, jokers: {} }, sou: { counts: {}, jokers: {} }, honor: { counts: {}, jokers: {} } }; G.narabeRowsDone = 0; G.narabeRowDone = {}; G.narabeSelected = null;
+  // ダウト追加ルール: 割れ目を毎局ランダムに1人選ぶ (bd指示 2026-11-23)
+  G.doubtWareme = (isDoubtVariant() && S.doubtExtra) ? Math.floor(Math.random() * NP()) : -1;
+  if (G.doubtWareme >= 0) log('ダウト割れ目: ' + G.players[G.doubtWareme].name + '（この人が関係するダウトの点数は全て2倍）');
   renderAll();
   if (S.variant === 'poverty' && G.nextPoverty && G.nextPoverty.kind !== 'none') {
     povertyExchangePhase().then(function () { playLoop(); });
@@ -1625,7 +1648,7 @@ function evalWin(p, winningTileType, opts) {
       r.han += p.riichiStacks;
       r.score = MJ.scoreFromHanFu(r.han, r.fu, pi === G.dealer, isTsumo, engineSettings());
     }
-    var usoBonus = doubtUsoBonusEv(doubtUsoCount(p), evalWild + revealedWilds, pi === G.dealer, isTsumo);
+    var usoBonus = doubtUsoBonusEv(doubtUsoCount(p), evalWild + revealedWilds, pi === G.dealer, isTsumo, S.doubtExtra && G.doubtWareme === pi);
     if (usoBonus && usoBonus.score.total > r.score.total) {
       r.yaku = [{ name: usoBonus.name, han: usoBonus.han, yakuman: usoBonus.yakumanCount }];
       r.han = usoBonus.han; r.yakumanCount = usoBonus.yakumanCount; r.score = usoBonus.score;
@@ -1861,6 +1884,7 @@ function renderAll() {
   if (S.variant === 'poverty' && p.povertyRole && p.povertyRole !== 'common') flags += '<span>' + ({ tycoon: '大富豪', pauper: '大貧民', rich: '富豪', poor: '貧民' })[p.povertyRole] + '</span>';
   if (S.variant === 'chain' && p.fixed) flags += '<span>固定</span>';
   if (S.variant === 'chain' && G.chainOut && G.chainOut[pi]) flags += '<span>上がり済み</span>';
+  if (isDoubtVariant() && S.doubtExtra && G.doubtWareme === pi) flags += '<span class="wareme">割れ目</span>';
   if (S.variant === 'napoleon' && G.napoleon && pi === G.napoleon.pi) flags += '<span>ナポレオン ' + G.napoleon.bid + '点・' + napoleonTrumpName(G.napoleon.trump) + '</span>';
     if (p.abilities && p.abilities.length) { flags += '<span class="ability">特技:' + p.abilities.map(function (aid) { var ab = ABILITIES.find(function (a) { return a.id === aid; }); return ab ? ab.name : ''; }).join('・') + '</span>'; }
     // ネット対戦: 切断中のリモート席にはバッジを出す (状態は G.netSeats、ホストが管理しスナップショットで配る)
@@ -2115,6 +2139,7 @@ async function playLoop() {
         return;
       }
       if (res === 'kan') { needsDraw = true; rinshanDraw = true; continue; }
+      if (res === 'discarded') { current = (pi + 1) % NP(); needsDraw = true; rinshanDraw = false; continue; } // ダウトのカン崩れ河落ちが捨て牌を兼ねた
     }
     if (S.variant === 'poverty') {
       G.shibariRestrict = null;
@@ -2134,6 +2159,7 @@ async function playLoop() {
     if (G.humanWin) { var hw = G.humanWin; G.humanWin = null; await doWinTsumo(hw.pi, hw.ev); if (S.variant === 'chain' && G.chainContinued) { G.chainContinued = false; current = G.chainResumePi; needsDraw = true; continue; } return; }
     if (G.humanWinDone) { G.humanWinDone = false; return; }
     if (G.humanKan) { G.humanKan = false; needsDraw = true; rinshanDraw = true; current = pi; continue; }
+    if (G.humanTurnDone) { G.humanTurnDone = false; current = (pi + 1) % NP(); needsDraw = true; continue; } // 即ダウトでカンが崩れ、河落ち牌が捨て牌を兼ねた
     if (G.specialWin) { var sw = G.specialWin; G.specialWin = null; await doWinTsumo(sw.pi, sw.ev, true); return; }
     var outcome = await resolveDiscard(pi, dInfo);
     if (G.loopToken !== token || G.over) return;
@@ -2141,7 +2167,7 @@ async function playLoop() {
       if (S.variant === 'chain' && G.chainContinued) { G.chainContinued = false; current = G.chainResumePi; needsDraw = true; continue; }
       return;
     }
-    if (outcome.type === 'call') { if (S.variant === 'poverty') G.justCalledPi = outcome.player; current = outcome.player; needsDraw = outcome.needsDraw; rinshanDraw = !!outcome.rinshan; continue; }
+    if (outcome.type === 'call') { if (S.variant === 'poverty') G.justCalledPi = outcome.player; if (outcome.turnDone) { current = (outcome.player + 1) % NP(); needsDraw = true; rinshanDraw = false; continue; } current = outcome.player; needsDraw = outcome.needsDraw; rinshanDraw = !!outcome.rinshan; continue; }
     current = (S.variant === 'group' || S.variant === 'gdoubt') ? groupNextPlayer(pi, dInfo.tile.t) : S.variant === 'poverty' ? povertyNext(pi, dInfo) : S.variant === 'chain' ? chainNextActive(pi) : (pi + 1) % NP(); needsDraw = true;
   }
 }
@@ -2318,6 +2344,7 @@ async function afterDraw(pi) {
         var dkRes = await doubtExecuteKakan(pi, dk.meldIndex, fodder[0]);
         if (dkRes === 'robbed') return 'win';
         if (dkRes === 'kan') return 'kan';
+        if (dkRes === 'bustedDrop') return 'discarded'; // 即ダウトでカンが崩れ、河落ち牌が捨て牌を兼ねた
       }
     }
   }
@@ -2493,6 +2520,7 @@ else {
 var dkResH = await doubtExecuteKakan(pi, dmi, addTileDk);
 if (dkResH === 'robbed') { G.humanWinDone = true; return { tile: null, drec: null}; }
 if (dkResH === 'kan') { G.humanKan = true; return { tile: null, drec: null}; }
+if (dkResH === 'bustedDrop') { G.humanTurnDone = true; return { tile: null, drec: null}; } // カン全体が崩れ、河落ち牌が捨て牌を兼ねた
 pd = computePostDraw(pi); // 見破られた: 手牌が戻ったのでツモ/槓の候補を再計算してから捨て牌へ
 }
 }
@@ -3375,8 +3403,13 @@ var SANMA_TODO = []; // build103: 全バリアント対応済み
 function isSanma() { return Number(S.playerCount || 4) === 3; }
 function NP() { return G ? G.players.length : (isSanma() ? 3 : 4); }
 function sanmaAllows(v) { return !isSanma() || (SANMA_NG.indexOf(v) < 0 && SANMA_TODO.indexOf(v) < 0); }
-function startScoreNow() { return isSanma() ? Number(S.sanmaStartScore) : Number(S.startScore); }
-function returnScoreNow() { return isSanma() ? Number(S.sanmaReturnScore) : Number(S.returnScore); }
+// ダウト系の原典推奨点数 (bd指示 2026-11-23: 設定で選べるように。サンマではサンマ用設定が優先)
+function doubtOriginalScore() {
+  if (S.doubtScore !== 'original' || !isDoubtVariant() || isSanma()) return null;
+  return S.variant === 'gdoubt' ? { start: 18000, ret: 20000 } : { start: 15000, ret: 15000 };
+}
+function startScoreNow() { var d = doubtOriginalScore(); return d ? d.start : (isSanma() ? Number(S.sanmaStartScore) : Number(S.startScore)); }
+function returnScoreNow() { var d = doubtOriginalScore(); return d ? d.ret : (isSanma() ? Number(S.sanmaReturnScore) : Number(S.returnScore)); }
 function kitaInHand(p) { return p.hand.filter(function (t) { return t.t === 30; }).length; }
 function canKita(p) { return isSanma() && kitaInHand(p) > 0 && (!p.riichi || kitaInHand(p) === 1); }
 /* ================= ダウト麻雀 =================
@@ -3429,7 +3462,7 @@ function doubtWildTotal(p) {
   p.melds.forEach(function (m) { m.tiles.forEach(function (t) { if (t.wild) n++; }); });
   return n;
 }
-function doubtUsoBonusEv(uso, wildTotal, isDealer, isTsumo) {
+function doubtUsoBonusEv(uso, wildTotal, isDealer, isTsumo, wareme) {
   if (uso < 3) return null;
   var st = engineSettings();
   if (uso >= 5) {
@@ -3442,6 +3475,8 @@ function doubtUsoBonusEv(uso, wildTotal, isDealer, isTsumo) {
     if (han10 >= 10) return { name: '4ウーソー（役満）', han: 10, yakumanCount: 1, score: MJ.scoreFromHanFu(13, 40, isDealer, isTsumo, st) };
     return { name: '4ウーソー', han: han10, yakumanCount: 0, score: MJ.scoreFromHanFu(Math.max(han10, 1), 40, isDealer, isTsumo, st) };
   }
+  // 追加ルール: 勝者が割れ目のとき 3ウーソーは満貫でなく倍満になる (原典の追加ルール)
+  if (wareme) return { name: '3ウーソー（倍満・割れ目）', han: 8, yakumanCount: 0, score: MJ.scoreFromHanFu(8, 40, isDealer, isTsumo, st) };
   return { name: '3ウーソー（満貫）', han: 5, yakumanCount: 0, score: MJ.scoreFromHanFu(5, 40, isDealer, isTsumo, st) };
 }
 function doubtPlusOneDora(ev, pi, isTsumo, kind) {
@@ -3473,6 +3508,8 @@ function doubtMeldLabel(meld) {
 }
 async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
   var amount = immediate ? 2000 : 1000;
+  // 追加ルール (割れ目): 所有者かダウト者のどちらかが割れ目なら金額は2倍
+  if (S.doubtExtra && G.doubtWareme >= 0 && (G.doubtWareme === ownerPi || G.doubtWareme === doubterPi)) amount *= 2;
   var doubter = G.players[doubterPi], owner = G.players[ownerPi];
   if (meld.kakanHidden) {
     // 公開済みポンへの加槓に対するダウト: 判定は加えた1枚だけ。ポン自体は公開済みなので、
@@ -3576,11 +3613,12 @@ function doubtUndoMeld(ownerPi, meld, immediate) {
   if (meld.claimKind === 'kan' && meld.kanDoraFlipped) { unflipKanDora(); meld.kanDoraFlipped = false; }
   if (p.kuikae && p.kuikae.meld === meld) p.kuikae = null;
   // 取り消し: メルドの牌は (取った牌も含めて) 全部、鳴いた人の手牌に戻る
-  // ただし槓の「余分な1枚」の扱いはタイミングで変える: 即ダウトで崩れた場合は所有者が
-  // この後すぐ捨てるので全枚手牌に戻す。後からのダウトで崩れた場合は所有者が休止状態の
-  // ため、1枚を河に捨てて枚数を合わせる (どちらを欠いても手牌が1枚ずれ、二度と上がれなくなる)
+  // ただし槓は原典どおり、即ダウト・後からのダウトを問わず「1枚をランダムに捨てて、
+  // 残りを手牌に入れる」(bd指示 2026-11-23)。即ダウトで崩れた場合は、その捨て牌が
+  // 所有者のそのターンの捨て牌を兼ね、所有者はもう捨てない (呼び出し側が turnDone /
+  // 'bustedDrop' で手番を進める)。河に落ちた牌は後から崩れた場合と同じくロン窓の対象。
   var tiles = meld.tiles.slice();
-  if (meld.claimKind === 'kan' && !immediate) {
+  if (meld.claimKind === 'kan') {
     var dropIx = Math.floor(Math.random() * tiles.length);
     var drop = tiles.splice(dropIx, 1)[0];
     p.discards.push({ tile: drop, riichi: false, protected: false, called: false });
@@ -3677,7 +3715,8 @@ async function doubtExecuteKakan(pi, meldIndex, tileObj) {
   renderAll();
   // 鳴き直後と同じ即ダウト窓 (捨てる前なら2000点)
   await doubtImmediateWindow(pi, meld);
-  if (p.melds.indexOf(meld) < 0 || meld.kind !== 'kan') { G.rinshanFlag = false; return 'busted'; }
+  if (p.melds.indexOf(meld) < 0) { G.rinshanFlag = false; return 'bustedDrop'; } // カン全体が崩れた: 河落ち牌が捨て牌を兼ねる
+  if (meld.kind !== 'kan') { G.rinshanFlag = false; return 'busted'; } // 公開ポンへの加槓だけ崩れた: 加えた1枚の処理のみで捨て直す
   return 'kan';
 }
 async function doubtImmediateWindow(ownerPi, meld) {
@@ -3895,7 +3934,9 @@ async function doubtExecuteClaim(ci, fromPi, tile, kind, seqBase, opts) {
   await doubtImmediateWindow(ci, meld);
   var survived = p.melds.includes(meld);
   if (survived && kind === 'kan') { flipKanDora(); meld.kanDoraFlipped = true; G.rinshanFlag = true; }
-  // 取り消された場合も、鳴いた人は (手牌に戻った牌を含めて) そのまま捨てる
+  // 取り消された場合、鳴いた人は (手牌に戻った牌を含めて) そのまま捨てる。
+  // ただしカンが崩れた場合は河落ちの1枚が捨て牌を兼ねるので捨て直さない (turnDone)
+  if (!survived && kind === 'kan') return { type: 'call', player: ci, meld: meld, kind: kind, needsDraw: false, rinshan: false, turnDone: true };
   return { type: 'call', player: ci, meld: meld, kind: kind, needsDraw: survived && kind === 'kan', rinshan: survived && kind === 'kan' };
 }
 function doubtDismantleMeld(ownerPi, meld) {
@@ -4026,6 +4067,8 @@ async function doubtCallPhase(pi, tile) {
     var fp = G.players[final.pi];
     var survived = fp.melds.includes(final.meld);
     if (survived && final.kind === 'kan') { flipKanDora(); final.meld.kanDoraFlipped = true; G.rinshanFlag = true; }
+    // 即ダウトでカンが崩れた場合: 河に落ちた1枚がそのターンの捨て牌を兼ねる (bd指示 2026-11-23)
+    if (!survived && final.kind === 'kan') return { type: 'call', player: final.pi, needsDraw: false, rinshan: false, turnDone: true };
     return { type: 'call', player: final.pi, needsDraw: survived && final.kind === 'kan', rinshan: survived && final.kind === 'kan' };
   }
   return null;
@@ -4043,11 +4086,32 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
       '<p>' + discarder.name + ' から ' + pay + '点</p>' + (note ? '<p>（' + note + '）</p>' : '') + (extraHtml || '');
     return finishHand({ winner: qi, ev: ev, html: html, multiWinners: [qi] });
   }
+  // 追加ルール (原典): ダウトの成否は上がりの精算とは別判定で2000点固定。
+  // 嘘なら宣言者がダウトした人に払い、本物ならダウトした人が宣言者に払う。
+  // 割れ目が当事者 (宣言者か振り込んだ人) の場合は4000点。
+  function doubtRonJudgment(fake) {
+    var j = (G.doubtWareme >= 0 && (G.doubtWareme === qi || G.doubtWareme === pi)) ? 4000 : 2000;
+    if (fake) {
+      q.score -= j; discarder.score += j;
+      log(q.name + ' のロンは嘘だった（ダウト別判定: ' + discarder.name + ' に ' + j + '点）');
+      return q.name + ' は嘘ロンだったので、別判定で ' + discarder.name + ' に ' + j + ' 点を支払いました';
+    }
+    discarder.score -= j; q.score += j;
+    log(discarder.name + ' のダウトは失敗（ダウト別判定: ' + q.name + ' に ' + j + '点）');
+    return discarder.name + ' はダウト失敗の別判定で ' + q.name + ' に ' + j + ' 点を支払いました';
+  }
   if (fakeEv && !trueEv) {
-    var bonus = doubtUsoBonusEv(doubtUsoCount(q) + 1, doubtWildTotal(q), qi === G.dealer, false);
+    var bonus = doubtUsoBonusEv(doubtUsoCount(q) + 1, doubtWildTotal(q), qi === G.dealer, false, S.doubtExtra && G.doubtWareme === qi);
     var evF = doubtPlusOneDora(fakeEv, qi, false, 'fake');
     if (bonus && bonus.score.total > evF.score.total) {
       evF = { yaku: [{ name: bonus.name, han: bonus.han, yakuman: bonus.yakumanCount }], han: bonus.han, fu: 40, yakumanCount: bonus.yakumanCount, score: bonus.score };
+    }
+    if (doubtIt && S.doubtExtra) {
+      // 追加ルール: 嘘ロンでも上がり自体は通常精算し、ダウトの成否は別判定で処理する
+      var noteJ = doubtRonJudgment(true);
+      if (doubtTobiCheck()) return true;
+      await finishWith(evF, '嘘ロン（追加ルール: 通常精算＋別判定）', '<p>' + noteJ + '</p>');
+      return true;
     }
     if (doubtIt) {
       q.score -= evF.score.total; discarder.score += evF.score.total;
@@ -4080,10 +4144,17 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
     // 本物でも嘘でも宣言できる待ち: ダウトされたら本物として、されなければ嘘ロンとして精算する
     // (宣言した側が高く上がれる方に倒す — ユーザー指示 2026-11-15)
     if (doubtIt) {
+      if (S.doubtExtra) {
+        // 追加ルール: 本物として通常精算 (ドラ+1なし) + 別判定
+        var noteJ2 = doubtRonJudgment(false);
+        if (doubtTobiCheck()) return true;
+        await finishWith(trueEv, 'ダウトされたが本当（追加ルール: 別判定）', '<p>' + noteJ2 + '</p>');
+        return true;
+      }
       var evT2 = doubtPlusOneDora(trueEv, qi, false);
       await finishWith(evT2, 'ダウトされたが本当（ドラ+1）');
     } else {
-      var bonus2 = doubtUsoBonusEv(doubtUsoCount(q) + 1, doubtWildTotal(q), qi === G.dealer, false);
+      var bonus2 = doubtUsoBonusEv(doubtUsoCount(q) + 1, doubtWildTotal(q), qi === G.dealer, false, S.doubtExtra && G.doubtWareme === qi);
       var evF2 = doubtPlusOneDora(fakeEv, qi, false, 'fake');
       if (bonus2 && bonus2.score.total > evF2.score.total) {
         evF2 = { yaku: [{ name: bonus2.name, han: bonus2.han, yakuman: bonus2.yakumanCount }], han: bonus2.han, fu: 40, yakumanCount: bonus2.yakumanCount, score: bonus2.score };
@@ -4094,6 +4165,13 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
   }
   if (trueEv) {
     if (doubtIt) {
+      if (S.doubtExtra) {
+        // 追加ルール: 本物として通常精算 (ドラ+1なし) + 別判定
+        var noteJ3 = doubtRonJudgment(false);
+        if (doubtTobiCheck()) return true;
+        await finishWith(trueEv, 'ダウト失敗（追加ルール: 別判定）', '<p>' + noteJ3 + '</p>');
+        return true;
+      }
       var evT = doubtPlusOneDora(trueEv, qi, false);
       await finishWith(evT, 'ダウト失敗（ドラ+1で支払い）');
     } else await finishWith(trueEv, '');
@@ -4149,7 +4227,7 @@ async function doubtRonPhase(pi, tile, houtei) {
       NET.promptSeat = pi;
       var ansD = await modalChoice('<h3>' + q.name + ' がロンと宣言しました！</h3>' +
         '<p>あなたの捨て牌 ' + MJ.TILE_NAMES[tile.t] + ' に対するロンです（' + hanText(shownEvD) + ' ' + shownEvD.fu + '符）。<br>嘘だと思いますか？</p>',
-        [{ label: 'ダウトする！（嘘なら点数を逆にもらえる）', value: true }, { label: 'ダウトしない（通常の支払い）', value: false, cls: 'sub' }]);
+        [{ label: S.doubtExtra ? 'ダウトする！（別判定で2000点固定の移動）' : 'ダウトする！（嘘なら点数を逆にもらえる）', value: true }, { label: 'ダウトしない（通常の支払い）', value: false, cls: 'sub' }]);
       doubtIt = ansD === true;
     } else {
       doubtIt = Math.random() < Math.min(0.6, 0.25 + q.melds.filter(function (m) { return m.hidden || m.kakanHidden; }).length * 0.1);
@@ -4479,7 +4557,8 @@ async function napoleonAuctionPhase() {
    ジョーカーが4枚入り、ボードの穴埋めに使える他、任意の人の河に捨てることができ、
    捨てられた人は手牌1枚と交換できる (交換で出た牌には一切干渉できない)。
    ジョーカーは上がりには関係ない。食い上がり採用 (鳴き1つにつきドラ1つ扱い)。
-   簡易化: 並べた牌も自分のフリテン判定には捨て牌と同様に数える。 */
+   フリテンは自分の河の捨て牌と鳴かれた牌だけで判断する (並べた牌は数えない。
+   bd裁定 2026-11-23)。 */
 function narabeSuitKey(t) { return t < 27 ? ['man', 'pin', 'sou'][Math.floor(t / 9)] : 'honor'; }
 function narabeNum(t) { return t < 27 ? (t % 9) + 1 : (t - 27) + 1; }
 function narabeRowStart(key) { return key === 'honor' ? 4 : 5; }
@@ -4751,7 +4830,7 @@ async function narabeDoPlace(pi, act) {
     // ジョーカー + 1つ先の牌 (またはメンツ) を一緒に並べる。並べた分だけ直後にツモる (並べた枚数-1)
     var ctiles = act.tiles;
     narabeRemove(p, act.jokerTile);
-    ctiles.forEach(function (t) { narabeRemove(p, t); p.discardTypes.push(t.t); });
+    ctiles.forEach(function (t) { narabeRemove(p, t); }); // 並べた牌は自分のフリテンに数えない (bd裁定 2026-11-23)
     renderAll();
     var winnersJ = await narabeResolveMeldRon(pi, ctiles);
     if (winnersJ.length) return 'win';
@@ -4775,14 +4854,15 @@ async function narabeDoPlace(pi, act) {
       speakCall(p.doubleRiichi ? 'ダブルリーチ' : 'リーチ');
     }
     narabeRemove(p, tile);
-    p.discardTypes.push(tile.t);
+    // 並べた牌は自分のフリテンに数えない (bd裁定 2026-11-23)。ただし鳴かれた場合は
+    // 「鳴かれた牌」としてフリテンの根拠になるので、その時だけ discardTypes に入れる。
     var drec = { tile: tile, riichi: !!act.riichi, protected: false, called: false, placed: true };
     p.discards.push(drec);
     G.lastDiscard = drec;
     renderAll();
     var outcome = await resolveDiscard(pi, { tile: tile, drec: drec });
     if (outcome.type === 'win') return 'win';
-    if (outcome.type === 'call') return { callPlayer: outcome.player, needsDraw: outcome.needsDraw, rinshan: outcome.rinshan };
+    if (outcome.type === 'call') { p.discardTypes.push(tile.t); return { callPlayer: outcome.player, needsDraw: outcome.needsDraw, rinshan: outcome.rinshan }; }
     var ix = p.discards.indexOf(drec);
     if (ix >= 0) p.discards.splice(ix, 1);
     var key = narabeSuitKey(tile.t);
@@ -4794,7 +4874,7 @@ async function narabeDoPlace(pi, act) {
   }
   if (act.kind === 'meld') {
     var tiles = act.tiles;
-    tiles.forEach(function (t) { narabeRemove(p, t); p.discardTypes.push(t.t); });
+    tiles.forEach(function (t) { narabeRemove(p, t); }); // 並べた牌は自分のフリテンに数えない (bd裁定 2026-11-23)
     renderAll();
     var winners = await narabeResolveMeldRon(pi, tiles);
     if (winners.length) return 'win';
@@ -5263,7 +5343,12 @@ async function playLoopBridge() {
    チェイン中に相方が上がると、最初の上がりの翻数が相方の上がりに足される (一括精算)。
    複数チームが上がった場合は最後に上がったチームの上がりのみ成立する。
    混一色/清一色は-1翻、国士無双は8翻。両パートナーの色数 (萬/筒/索/字) の合計が
-   7色で+1翻、8色で+2翻 (レインボー)。却下は原典本文の2000点方式 (改正案の3000点は不採用)。 */
+   7色で+1翻、8色で+2翻 (レインボー)。
+   方式は設定 S.chainMode で選べる (bd指示 2026-11-23): 'current' 現行 (上記)、
+   'revised' 改正案2003 (ストップ却下は3000点ずつ・+1翻なし。原典の作例で相方の
+   ストップ却下も 2000(3000) と書かれているため全てのストップ却下に適用)、
+   'improved' 改善案2024 (宣言・却下なし。どちらかのチームが2人上がるまで続け、
+   ボーナスは 1-2人目ペア=満額 / 1-3人目ペア=半分・切り上げ / 2-3人目ペア=なし)。 */
 function chainPartner(pi) { return (pi + 2) % NP(); }
 function chainNextActive(pi) {
   var n = pi;
@@ -5391,12 +5476,13 @@ async function chainAskDeclaration(win) {
 async function chainAskRejection(win, decl) {
   var oppTeam = [0, 1, 2, 3].filter(function (i) { return i % 2 !== win.pi % 2; });
   var winner = G.players[win.pi];
+  var rejAmt = (decl === 'stop' && S.chainMode === 'revised') ? 3000 : 2000; // 改正案: ストップ却下は3000点
   if (oppTeam.some(function (i) { return G.players[i].isHuman; })) {
     // ネット対戦で相手チームに人間が複数いる場合は、ローカル席を優先し、次に先の席が決める
     NET.promptSeat = oppTeam.indexOf(0) >= 0 && G.players[0].isHuman ? 0 : oppTeam.find(function (i) { return G.players[i].isHuman; });
     var ans = await modalChoice('<h3>相手チームの宣言: ' + (decl === 'chain' ? 'チェイン' : 'ストップ') + '</h3><p>' +
-      winner.name + ' の ' + hanText(win.ev) + ' ' + win.ev.fu + '符。却下にはチーム2人がそれぞれ2000点を ' + winner.name + ' に支払います。</p>',
-      [{ label: '却下する（各2000点）', value: 'reject' }, { label: '認める', value: 'accept' }]);
+      winner.name + ' の ' + hanText(win.ev) + ' ' + win.ev.fu + '符。却下にはチーム2人がそれぞれ' + rejAmt + '点を ' + winner.name + ' に支払います。</p>',
+      [{ label: '却下する（各' + rejAmt + '点）', value: 'reject' }, { label: '認める', value: 'accept' }]);
     return ans === 'reject';
   }
   await sleep(200);
@@ -5441,6 +5527,7 @@ async function chainFinish(wins) {
 }
 async function chainHandleWin(win) {
   speakCall(win.type === 'tsumo' ? 'ツモ' : 'ロン');
+  if (S.chainMode === 'improved') { await chainHandleWinImproved(win); return; }
   var pi = win.pi, p = G.players[pi], partnerPi = chainPartner(pi);
   G.chainPending = G.chainPending || {};
   G.chainOut = G.chainOut || {};
@@ -5462,11 +5549,12 @@ async function chainHandleWin(win) {
   var decl = await chainAskDeclaration(win);
   log(p.name + ' は「' + (decl === 'chain' ? 'チェイン' : 'ストップ') + '」を宣言した');
   var rejected = await chainAskRejection(win, decl);
-  log('相手チームは' + (rejected ? '却下した（各2000点支払い）' : '認めた'));
+  var rejAmt = (decl === 'stop' && S.chainMode === 'revised') ? 3000 : 2000; // 改正案: ストップ却下は3000点・+1翻なし
+  log('相手チームは' + (rejected ? '却下した（各' + rejAmt + '点支払い）' : '認めた'));
   if (rejected) {
-    [0, 1, 2, 3].filter(function (i) { return i % 2 !== pi % 2; }).forEach(function (i) { G.players[i].score -= 2000; });
-    p.score += 4000;
-    log('却下！ 相手チームの2人が ' + p.name + ' に2000点ずつ支払った');
+    [0, 1, 2, 3].filter(function (i) { return i % 2 !== pi % 2; }).forEach(function (i) { G.players[i].score -= rejAmt; });
+    p.score += rejAmt * 2;
+    log('却下！ 相手チームの2人が ' + p.name + ' に' + rejAmt + '点ずつ支払った');
     renderAll();
   }
   if (decl === 'chain' && !rejected) {
@@ -5480,7 +5568,7 @@ async function chainHandleWin(win) {
     return;
   }
   if (decl === 'stop' && rejected) {
-    if (!win.ev.yakumanCount) {
+    if (S.chainMode !== 'revised' && !win.ev.yakumanCount) {
       chainRescore(win.ev, win.ev.han + 1, pi, win.type === 'tsumo');
       win.ev.yaku = win.ev.yaku.concat([{ name: '却下ボーナス', han: 1, yakuman: 0 }]);
     }
@@ -5489,7 +5577,7 @@ async function chainHandleWin(win) {
     G.chainLastTeam = pi % 2;
     G.chainContinued = true;
     G.chainResumePi = chainNextActive(pi);
-    log(p.name + ' のストップは却下された（+1翻で保留、ゲーム続行）');
+    log(p.name + ' のストップは却下された（' + (S.chainMode === 'revised' ? '改正案: +1翻なしで' : '+1翻で') + '保留、ゲーム続行）');
     renderAll();
     return;
   }
@@ -5501,6 +5589,55 @@ async function chainHandleWin(win) {
   wins.push(win);
   G.chainContinued = false;
   await chainFinish(wins);
+}
+/* 改善案 (2024.12.29): 宣言も却下もなく、どちらかのチームが2人上がるまで局を続ける。
+   チェインボーナスは 1-2人目ペア=満額 / 1-3人目ペア=半分 (切り上げ) / 2-3人目ペア=なし。
+   チームが完成したら、そのチームの上がりのみ成立する (相手の先の上がりは無効)。 */
+async function chainHandleWinImproved(win) {
+  var pi = win.pi, p = G.players[pi], partnerPi = chainPartner(pi);
+  G.chainPending = G.chainPending || {};
+  G.chainOut = G.chainOut || {};
+  G.chainWinOrder = G.chainWinOrder || [];
+  G.chainWinOrder.push(pi);
+  var myOrder = G.chainWinOrder.length; // この勝者が何人目か (1〜3)
+  var partnerPending = G.chainPending[partnerPi];
+  if (partnerPending) {
+    // チーム完成: 相手チームの保留中の上がりは無効になる
+    var partnerOrder = G.chainWinOrder.indexOf(partnerPi) + 1;
+    Object.keys(G.chainPending).forEach(function (k) {
+      if (Number(k) !== partnerPi) log(G.players[k].name + ' の上がりは無効になった（' + p.name + ' のチームが2人上がったため）');
+    });
+    G.chainPending = {};
+    G.chainContinued = false;
+    var pairMin = Math.min(partnerOrder, myOrder), pairMax = Math.max(partnerOrder, myOrder);
+    if (pairMax === 3 && pairMin === 2) {
+      // 2-3人目ペア: ボーナスなしで2人の上がりを個別に精算する
+      log('チェイン完成（2-3人目のペア: ボーナスなし）');
+      await chainFinish([partnerPending, { pi: pi, ev: win.ev, type: win.type, discarder: win.discarder, tile: win.tile }]);
+      return;
+    }
+    var rainbow = chainRainbowBonus(pi);
+    var firstHanFull = chainHanOf(partnerPending.ev) + rainbow;
+    var bonusHan = pairMin === 1 && pairMax === 3 ? Math.ceil(firstHanFull / 2) : firstHanFull;
+    var totalHan = chainHanOf(win.ev) + rainbow + bonusHan;
+    var evC = Object.assign({}, win.ev);
+    evC.yaku = win.ev.yaku.concat(rainbow > 0 ? [{ name: 'レインボー', han: rainbow, yakuman: 0 }] : [],
+      [{ name: 'チェイン（' + G.players[partnerPi].name + ' の上がり' + (pairMax === 3 ? '・半分' : '') + '）', han: bonusHan, yakuman: 0 }]);
+    evC.chainRainbowApplied = true;
+    chainRescore(evC, totalHan, pi, win.type === 'tsumo');
+    log('チェイン成立！ ' + G.players[partnerPi].name + ' の ' + firstHanFull + '翻' +
+      (pairMax === 3 ? '（1-3人目のペアなので半分の ' + bonusHan + '翻）' : '') + 'が ' + p.name + ' の上がりに足される');
+    await chainFinish([{ pi: pi, ev: evC, type: win.type, discarder: win.discarder, tile: win.tile }]);
+    return;
+  }
+  // まだ相方が上がっていない: 上がりを保留して抜け、局を続ける (宣言・却下なし)
+  G.chainPending[pi] = { pi: pi, ev: win.ev, type: win.type, discarder: win.discarder, tile: win.tile, mode: 'improved' };
+  G.chainOut[pi] = true;
+  G.chainLastTeam = pi % 2;
+  G.chainContinued = true;
+  G.chainResumePi = chainNextActive(pi);
+  log(p.name + ' が上がった（' + myOrder + '人目）。改善案: どちらかのチームが2人上がるまで続行');
+  renderAll();
 }
 
 
@@ -7272,8 +7409,11 @@ async function doRyukyoku() {
   var skipNagashi = !!G.skipNagashiOnce; G.skipNagashiOnce = false;
   if (S.variant === 'survival') { await ryukyokuSurvival(); return; }
   if (S.variant === 'chain' && G.chainPending && Object.keys(G.chainPending).length) {
-    var lastWins = Object.keys(G.chainPending).map(function (k) { return G.chainPending[k]; })
-      .filter(function (w) { return (w.pi % 2) === G.chainLastTeam; });
+    var allPending = Object.keys(G.chainPending).map(function (k) { return G.chainPending[k]; });
+    var lastWins = allPending.filter(function (w) { return (w.pi % 2) === G.chainLastTeam; });
+    // 改善案では相手チームの保留中の上がりも「成立している単独の上がり」として精算する
+    if (S.chainMode === 'improved') lastWins = allPending;
+    else allPending.forEach(function (w) { if ((w.pi % 2) !== G.chainLastTeam) log(G.players[w.pi].name + ' の保留中の上がりは無効になった（最後の上がり優先）'); });
     G.chainPending = {};
     if (lastWins.length) { await chainFinish(lastWins); return; }
   }
@@ -7377,7 +7517,7 @@ function endMatch(reason) {
   }).join('');
   var teamHtml = '';
   if (S.variant === 'group' || S.variant === 'chain' || S.variant === 'gdoubt') {
-    var vMap = {}, retG = Number(S.returnScore);
+    var vMap = {}, retG = returnScoreNow();
     sorted.forEach(function (e, rank) {
       var umaValG = [umaParts[1] || 0, umaParts[0] || 0, -(umaParts[0] || 0), -(umaParts[1] || 0)][rank];
       vMap[e.i] = (e.p.score - retG) / 1000 + umaValG + (rank === 0 ? oka : 0);
@@ -7681,6 +7821,9 @@ function bindSettings() {
   $('set-voicegender').value = S.voiceGender || 'auto'; $('set-voicegender').addEventListener('change', function (e) { S.voiceGender = e.target.value; saveSettings(); });
   $('set-doubtwildkind').value = S.doubtWildKind || 'five'; $('set-doubtwildkind').addEventListener('change', function (e) { S.doubtWildKind = e.target.value; saveSettings(); });
   $('set-rpabilities').value = String(S.roleplayAbilities || 1); $('set-rpabilities').addEventListener('change', function (e) { S.roleplayAbilities = Number(e.target.value); saveSettings(); });
+  $('set-chainmode').value = S.chainMode || 'current'; $('set-chainmode').addEventListener('change', function (e) { S.chainMode = e.target.value; saveSettings(); });
+  $('set-doubtscore').value = S.doubtScore || 'normal'; $('set-doubtscore').addEventListener('change', function (e) { S.doubtScore = e.target.value; saveSettings(); });
+  $('set-doubtextra').value = S.doubtExtra ? 'on' : 'off'; $('set-doubtextra').addEventListener('change', function (e) { S.doubtExtra = e.target.value === 'on'; saveSettings(); });
   updateVariantDesc();
 }
 function updateVariantDesc() { $('variant-desc').textContent = VARIANT_DESC[S.variant] || ''; }
@@ -8185,9 +8328,10 @@ function netSnapshotFor(seat) {
   var rot = [];
   for (var i = 0; i < np; i++) rot.push(snap.players[(seat + i) % np]);
   snap.players = rot;
-  ['dealer', 'current', 'draftStarter', 'exchStarter', 'justCalledPi', 'chainResumePi', 'napoleonStarter'].forEach(function (k) {
+  ['dealer', 'current', 'draftStarter', 'exchStarter', 'justCalledPi', 'chainResumePi', 'napoleonStarter', 'doubtWareme'].forEach(function (k) {
     if (typeof snap[k] === 'number') snap[k] = netRotIdx(snap[k], seat, np);
   });
+  if (Array.isArray(snap.chainWinOrder)) snap.chainWinOrder = snap.chainWinOrder.map(function (v) { return netRotIdx(v, seat, np); });
   if (snap.napoleon && typeof snap.napoleon.pi === 'number') snap.napoleon.pi = netRotIdx(snap.napoleon.pi, seat, np);
   ['chainOut', 'bridgeNoRon'].forEach(function (k) {
     if (Array.isArray(snap[k])) { var a = []; for (var j = 0; j < np; j++) a[j] = snap[k][(seat + j) % np]; snap[k] = a; }
@@ -8991,8 +9135,8 @@ var RULE_PAGES = [
   "body": "<p>このゲームでは対面にいる人が仲間であり、２対２で勝負する。<br>得点のつけ方での注意点は、ドボン点(ハコテンによるペナルティ)が丘(トップ賞)よりも大きくしておく事である。<br>最終的に一位から四位で順位点を加算してから二人の点数を合計して多いほうのチームが勝ちである。\n</p><br><p>この麻雀ではツモった後に対面にいる人と１牌を伏せて交換してから捨てる(例外として親のみ初めに捨てる前にも交換する)。<br>ただし、立直後は立直者のパートナーは交換せず(ツモって捨てるだけ)、<br>立直者はツモった牌で上がりを宣言しなかった場合はその牌をパートナーと交換する。\n</p><p>また、この麻雀では立直とは別に、牌を捨てるときに「固定」を宣言することができ、それ以降は上の立直者と同じ処理をすることになる。<br>この「固定」はないている場合でも宣言することができる。\n</p><br><p>次に、上がったときに(ツモの場合はその牌を開けて)、パートナーと相談(会話はよいが手牌を見ることはできない、<br>そのときの会話は相手にも公開される)した上で「チェイン」か「ストップ」を選択して、宣言する。<br>宣言した後に手牌を全て開ける。ここで、「チェイン」を宣言した場合はゲームは続行し(裏ドラはその局が終わるまで見てはいけない)、<br>相手の上がりを挟まずにパートナーが上がった場合は初めに上がった人の翻数を後に上がったパートナーの上がりに足して計算する(例は後述)。<br>この場合、上がった人はその後のゲームには参加できないため、上がったチームのパートナーは<br>自分の番に普通の麻雀どおり、交換なしでツモって捨てるだけになる。<br>「ストップ」を宣言した場合はその局はそこで終了し、その人の上がりとなる。<br>この選択はどちらかのチームが二人上がる前ならば上がりの度に毎回することになる。<br>また、複数のチームの人が上がった場合、最後に上がった人のチームの全ての上がりのみが成立する。\n</p><p>「チェイン」か「ストップ」を宣言されたときに相手チームはチームの二人がそれぞれ上がった人に２０００点ずつ渡し却下することができる。<br>「チェイン」を却下するとき、その上がりのみが成立する。<br>「ストップ」を却下するとき、その上がりは１翻加えた上がりとして考え、ゲームは続行する。<br>このときには「チェイン」ではないので、仮にそのチームが続けて上がった場合でも<br>「チェイン」のような翻数のボーナスはその上がりのチームには発生しない。\n</p><p>この麻雀では混一色と清一色は１翻マイナス扱いであり国士無双は８翻。<br>また、字牌、萬子、筒子、索子をそれぞれ１色と考えて、<br>局の終了時にパートナーと二人で合わせて７色あったら上がりが成立した人は１翻、８色あったら２翻の役がつく(レインボー)。</p><p>\n例えば、まずA氏が以下の手で上がったとする。\n<div class=\"rule-tiles\">\n{{tile:10}}{{tile:11}}{{tile:12}}\n{{tile:14}}{{tile:15}}{{tile:16}}\n{{tile:22}}{{tile:23}}{{tile:24}}\n{{tile:25}}{{tile:25}}{{tile:1}}\n{{tile:2}}&nbsp&nbsp{{tile:3}}(リーチロン)\n&nbsp&nbsp{{tile:1}}(ドラ){{tile:33}}(裏ドラ)\n</div><p>メンタンピンドラ１で満貫である。ここで、A氏のパートナーと相談し、\n<ul>\n<li>チェインを宣言したとする。\n<ul>\n<li>この宣言を相手チームが却下した場合、相手チームの二人はA氏にそれぞれ2000点ずつ支払う。<br>また、このA氏の上がりが認められる。特殊役のレインボーは上がりが認められた瞬間に判定するので、<br>このときに、A氏のパートナーの手牌に４種類(マンズ、ピンズ、ソウズ、字牌)の牌があれば７色レインボーとして（今は意味が無いが）１翻増しになる。\n<li>この宣言が許可された場合、ゲームは続行する。<br>ただし、先ほど述べたようにA氏のパートナーの手番では交換はできず、<br>普通の麻雀どおりツモって捨てるだけである。\n<ul>\n<li>その後の展開で相手チームが上がった場合、また、「チェイン」か「ストップ」を宣言する。\n<li>その後の展開でA氏のパートナーが上がった場合、「チェイン」が成立する。{{note:reject}}<br>例えば以下の手で上がったとする。\n<div class=\"rule-tiles\">\n{{tile:9}}{{tile:10}}{{tile:11}}\n{{tile:24}}{{tile:25}}{{tile:26}}\n{{tile:0}}{{tile:0}}{{tile:0}}\n{{tile:1}}{{tile:2}}{{tile:31}}\n{{tile:31}}&nbsp&nbsp{{tile:31}}(リーチロン)\n</div><p>リーチチャンタ白ドラ１で５翻であるが、<br>まず、A氏の手牌が３色(マンズ、ピンズ、ソウズ)あり、パートナーの手牌が４色あるので、<br>７色レインボーとして二人それぞれ１翻ずつ増える。<br>結果、A氏はメンタンピンドラ１レインボーで５翻なので、これがパートナーの翻数に足される。<br>よって、パートナーはリーチチャンタ白ドラ１レインボーチェイン５で１１翻になる。\n</ul>\n</ul>\n<li>ストップを宣言したとする。\n<ul>\n<li>相手チームがそれを許可した場合、ここでこの局は終了でレインボー判定のち、点数のやり取りをして終了。\n<li>相手チームが却下した場合、相手チームの二人はそれぞれ2000(3000)点をA氏に支払い、ゲームは続行する。\n<ul>\n<li>その後に相手チームの一人があがったら、また｢チェイン」「ストップ」宣言をする。\n<li>その後にA氏のパートナーが上がったら、レインボー判定をした後、二人のそれぞれの上がり点数を処理して終了。<br>この場合は「チェイン」のときのようにA氏の翻数がパートナーに足されることはない。\n</ul>\n</ul><p>(2003.8.18改正案)初めに上がったチームのストップを却下する場合、<br>点数の移動を2000でなく3000点にし(ちなみに4000点では大きすぎる感あり)、<br>１翻アップでは無いようにする方が早上がりに意味を持たせられるので良い?{{note:rev2003}}</p><p>(2024.12.29改善案)「チェイン」や「ストップ」の宣言は行わず、<br>必ずどちらかのチームが2人上がるまで局を続ける。<br>チェインボーナスは1-2人目に上がったペアがいた場合と、1-3人目に上がったペアがいた場合にのみ付く。<br>ただし、1-3人目に上がったペアに関しては通常の半分のボーナス（切り上げ）しかつかない。{{note:rev2024}}\n</p><br><br>",
   "notes": {
    "reject": "アプリでは、チェイン成立時（相方の上がり）には相手チームの却下機会はありません。",
-   "rev2003": "アプリではこの改正案（却下3000点・+1翻アップなし）は採用していません（却下は2000点ずつ、ストップ却下時は+1翻で保留して続行します）。",
-   "rev2024": "アプリではこの改善案（宣言をしない方式）は採用しておらず、チェイン/ストップの宣言方式で実装しています。"
+   "rev2003": "アプリでは、設定の「チェイン: 方式」で「改正案」を選ぶとこの改正案が適用されます（ストップ却下は3000点ずつ・+1翻アップなし。チェイン却下は2000点のまま）。初期設定は現行方式です。",
+   "rev2024": "アプリでは、設定の「チェイン: 方式」で「改善案」を選ぶとこの方式になります（宣言も却下もなく、どちらかのチームが2人上がるまで続きます。1-3人目のペアのボーナスは半分・切り上げ）。初期設定は現行方式です。"
   }
  },
  {
@@ -9008,9 +9152,8 @@ var RULE_PAGES = [
   "id": "narabe",
   "name": "並べ麻雀",
   "summary": "中央ボードへ7並べ式に並べる",
-  "body": "<p>この麻雀では、捨て牌を5枚切りにする。<br>また、ジョーカーとして扱える牌を4枚入れる。（花牌、赤牌など）\n</p><br><p>また、河以外に真ん中に牌を並べるスペースがあり、普通に捨てる代わりに牌をおく事ができる。<br>ここには、7並べの要領で、牌の種類ごとに並べていく。<br>数牌は5から、字牌は東南西北白發中の順に並べるため、北から並べていく。<br>また、1までいったら、9からでないと並べられないなどのルールも適用してもよい。<br>また、1メンツ（{{tile:20}}{{tile:21}}{{tile:22}}など）は一気にこの場に並べることができる。\nこのときは並べた直後に不足分を補うため2枚ツモる。<br>もちろん普通に捨てたのと同じように、その牌に対して鳴いたりロン上がりをすることが可能である。{{note:furiten}}<br>しかし、メンツで並べた場合は鳴くことはできず、ロン上がりのみ３種類の牌に対して宣言できる。</p><br><p>捨て牌が一列そろうごとにその枚数だけ手牌をあけなくてはならない。<br>つまり、５枚河に切ったら５枚手牌をオープンし、１０枚河に並んでしまったら１０枚手牌をオープンする。<br>また、開ける牌が足りない場合は１枚につき1000点を場に供託する。<br>このときに数えられる牌は自分で持っている見えない牌だけであるので、<br>ないている場合はその牌以外で5枚なり10枚なりを開ける必要がある。\n<div class=\"rule-tiles\">\n{{tile:9}}{{tile:9}}{{tile:9}}\n{{tile:10}}{{tile:11}}{{tile:12}}\n{{tile:13}}\n&nbsp&nbsp{{tile:33}}{{tile:33}}{{tile:33:rot}}\n&nbsp&nbsp{{tile:32}}{{tile:32}}{{tile:32:rot}}\n</div>\nこの例の場合に１０枚河に切ってしまったら、手牌をすべてオープンし、さらに3000点を供託する。\n</p><p>ジョーカーは牌を並べるときには7並べのジョーカーのようにジョーカーを置いて次の牌をおく事ができる。<br>このとき、ジョーカーを置いてさらにメンツを並べる事も可能である。{{note:joker}}<br>このときは、必要な枚数をその直後にツモる。<br>また、ジョーカーはあがりにはまったく関係ないが、任意の河に捨てることができる。<br>このとき、捨てられた人は自分の手牌と捨てられたジョーカーを交換する事もできる。<br>このとき交換して河に出た牌にはポンやチー、ロンなど一切干渉できない。\n</p><br><p>真ん中の並べスペースにおいて、ある種類の一列の最後の牌を出した人はその場で1000オールもらえる。<br>また2列目、3列目、となると、2000点オール、3000点オールと増えていく。<br>ただし、一列を完成させる牌がなかれた場合はメンツ並べ以外の場合は並べ終わったとはみなされない。<br>また、ロンのときはどの場合でも並べ終わったとはみなされない。</p><p>リーチ後は捨て牌数による手牌オープンからは解放されるが、<br>オープンしているべき数を数えて、足りない分はやはり供託しなければならない。<br>例えば、15枚河に並んだらやはり、2000点の供託をしなければならない。</p><p>また、このルールではなきが弱いため、食いあがりルールを適用する（なき1つにつきドラ1つ扱い）。</p><br><br>",
+  "body": "<p>この麻雀では、捨て牌を5枚切りにする。<br>また、ジョーカーとして扱える牌を4枚入れる。（花牌、赤牌など）\n</p><br><p>また、河以外に真ん中に牌を並べるスペースがあり、普通に捨てる代わりに牌をおく事ができる。<br>ここには、7並べの要領で、牌の種類ごとに並べていく。<br>数牌は5から、字牌は東南西北白發中の順に並べるため、北から並べていく。<br>また、1までいったら、9からでないと並べられないなどのルールも適用してもよい。<br>また、1メンツ（{{tile:20}}{{tile:21}}{{tile:22}}など）は一気にこの場に並べることができる。\nこのときは並べた直後に不足分を補うため2枚ツモる。<br>もちろん普通に捨てたのと同じように、その牌に対して鳴いたりロン上がりをすることが可能である。<br>しかし、メンツで並べた場合は鳴くことはできず、ロン上がりのみ３種類の牌に対して宣言できる。</p><br><p>捨て牌が一列そろうごとにその枚数だけ手牌をあけなくてはならない。<br>つまり、５枚河に切ったら５枚手牌をオープンし、１０枚河に並んでしまったら１０枚手牌をオープンする。<br>また、開ける牌が足りない場合は１枚につき1000点を場に供託する。<br>このときに数えられる牌は自分で持っている見えない牌だけであるので、<br>ないている場合はその牌以外で5枚なり10枚なりを開ける必要がある。\n<div class=\"rule-tiles\">\n{{tile:9}}{{tile:9}}{{tile:9}}\n{{tile:10}}{{tile:11}}{{tile:12}}\n{{tile:13}}\n&nbsp&nbsp{{tile:33}}{{tile:33}}{{tile:33:rot}}\n&nbsp&nbsp{{tile:32}}{{tile:32}}{{tile:32:rot}}\n</div>\nこの例の場合に１０枚河に切ってしまったら、手牌をすべてオープンし、さらに3000点を供託する。\n</p><p>ジョーカーは牌を並べるときには7並べのジョーカーのようにジョーカーを置いて次の牌をおく事ができる。<br>このとき、ジョーカーを置いてさらにメンツを並べる事も可能である。{{note:joker}}<br>このときは、必要な枚数をその直後にツモる。<br>また、ジョーカーはあがりにはまったく関係ないが、任意の河に捨てることができる。<br>このとき、捨てられた人は自分の手牌と捨てられたジョーカーを交換する事もできる。<br>このとき交換して河に出た牌にはポンやチー、ロンなど一切干渉できない。\n</p><br><p>真ん中の並べスペースにおいて、ある種類の一列の最後の牌を出した人はその場で1000オールもらえる。<br>また2列目、3列目、となると、2000点オール、3000点オールと増えていく。<br>ただし、一列を完成させる牌がなかれた場合はメンツ並べ以外の場合は並べ終わったとはみなされない。<br>また、ロンのときはどの場合でも並べ終わったとはみなされない。</p><p>リーチ後は捨て牌数による手牌オープンからは解放されるが、<br>オープンしているべき数を数えて、足りない分はやはり供託しなければならない。<br>例えば、15枚河に並んだらやはり、2000点の供託をしなければならない。</p><p>また、このルールではなきが弱いため、食いあがりルールを適用する（なき1つにつきドラ1つ扱い）。</p><br><br>",
   "notes": {
-   "furiten": "アプリでは、並べた牌も自分のフリテン判定では捨て牌と同様に数えます。",
    "joker": "アプリではジョーカーを単独で置くことはできません。「今並べられる位置」の1つ先の牌と一緒に置く（手前の位置をジョーカーが代用します）か、ジョーカーを置けば並べられるメンツと一緒に置きます。"
   }
  },
@@ -9025,13 +9168,12 @@ var RULE_PAGES = [
   "id": "doubt",
   "name": "ダウト麻雀",
   "summary": "嘘の鳴き・嘘リーチ・嘘ロンとダウト",
-  "body": "<p>このルールではオールマイティが入っていることを前提とする<br>(オールマイティのルールは<a href=\"#\" class=\"rule-xlink\" data-open-rule=\"allmighty\">オールマイティ麻雀</a>参照)。<br>オールマイティの枚数は４枚あるいは８枚が適当と思われる。</p><p>この麻雀では様々なうそをつくことができる。それは以下の場合である。\n<ul>\n<li>鳴くとき\n<li>リーチをかけるとき\n<li>ロンあがりを宣言するとき\n</ul>\nこのそれぞれについて順番に説明していく。</p><p>まず、鳴くときである。<br>鳴くとき自分の牌は伏せてだし、鳴いた牌を取る。<br>ここで嘘をついても良い。ちなみにポンよりカンの方が強い。<br>鳴くことのできる位置は普通の麻雀どおり、ポンやカンはどこからでも、チーは上家からのみ可能である。<br>鳴いた牌以外は伏せてしまうため、ポンやチーの形を決めておくとよい\n<br>（カンは４枚あるので特に決めなくても鳴いた場所さえ分かるようにしておけばよい)。</p><div class=\"rule-tiles\">\n{{tile:33:rot}}<br>{{tile:back}}{{tile:back}}\n</div><br>筆者たちの取り決めではポンは上の図のように重ね、上家から鳴いた場合は左、<br>下家から鳴いた場合は右、対面から鳴いた場合は真ん中を見える牌にする。<br>上の例では中を対面から鳴いた図である。\n<div class=\"rule-tiles\">\n{{tile:back}}{{tile:back}}{{tile:6:rot}}\n</div><br>また、筆者たちの取り決めではチーは上の図のように重ね、左が一番小さな数字、<br>右が一番大きな数字である。上の例では{{tile:4}}{{tile:5}}\nを持っていて、{{tile:6}}をチーしたという主張である。<p>伏せてある鳴きに関して鳴いた人以外はダウトをいつでもかけることができる。<br>ダウトをかけられたなきをした人は嘘であったら(本当でも嘘として処理する事もできる)<br>ダウトをかけた人に1000点払い、なきの３牌を手牌に入れる<br>（カンの場合は１枚をランダムに捨てて、残りを手牌に入れる）{{note:kanundo}}。<br>嘘でなかったら、1000点払って同様の事をする(嘘のふりをする)か、牌をオープンしてダウトをかけた人から1000点もらう。<br>このとき、手牌に入ってしまった鳴かれた牌は鳴かれた人のフリテンではなくなる(証拠が無くなる)ので注意。<br>また、ダウト宣言のとき、鳴いてからその人がが捨てるまでにダウトをかけたら、即ダウトといって、点数のやりとりは2000点になる。\n</p>{{note:kakan}}<p><br>注意：ダウトは「いつでも」かけられるのだが、このゲームでは発声優先なので、<br>誰かがツモあるいはロンといった上がり宣言をした瞬間にその局はそれ以上鳴きに対してダウトをかけることはできなくなる。\n</p><br><p>次にリーチをかけるときである。リーチは自分の番に解除する事ができる。<br>そのため、ノーテンリーチをかけることは自由である。但し出したリーチ棒はそのままである。<br>もちろん、流局でノーテンリーチがばれた場合は決められたペナルティを支払わなければならない。</p><br><p>また、リーチはかけてから3順ごとの自分の番に1000点を出して1翻増やせる（リーチを何重にもかけられる、３順ごとに１回リーチ）。<br>この役は普通の役として扱うので例えばオールマイティが２枚あってもリーチを３回かけていれば上がることができる。<br>もちろん、出した1000点は普通のリーチ棒と同じように扱う。\n</p><br><p>最後にロン上がりのときである。<br>数牌が待ちであれば、違う種類の同じ数字でもロンが言え、<br>字牌で東南西北のときはそのどれでもロンが言え、白發中のときはそのどれでもロンが言える。\n<div class=\"rule-tiles\">{{tile:10}}{{tile:11}}{{tile:12}}\n{{tile:13}}{{tile:14}}{{tile:15}}\n{{tile:20}}{{tile:20}}{{tile:20}}\n{{tile:21}}{{tile:22}}{{tile:24}}\n{{tile:13:red}}&nbsp&nbsp\n</div><br>この例では、本当の待ちは{{tile:19}}{{tile:20}}\n{{tile:21}}{{tile:22}}{{tile:23}}\n{{tile:24}}{{tile:25}}{{tile:26}}\nであるので、<br>{{tile:10}}{{tile:11}}\n{{tile:12}}{{tile:13}}{{tile:14}}\n{{tile:15}}{{tile:16}}{{tile:17}}\n{{tile:1}}{{tile:2}}\n{{tile:3}}{{tile:4}}{{tile:5}}\n{{tile:6}}{{tile:7}}{{tile:8}}\nであってもロン宣言をすることができる。<br>ただし、本当の待ち以外は見逃してもフリテンにはならない。<br>ロンをしたときにはすぐに手牌を開けず、振りこんだ人がダウトを言うかどうかを決めてから開ける。\n<ol>\n<li>ダウトを言わなかった場合\n<ul>\n<li>嘘でなかったら普通に点数を支払う。\n<li>嘘であったら普通の役にドラを１枚追加である状態の点数を支払う。\n</ul>\n<li>ダウトを言った場合\n<ul>\n<li>嘘であったら、あがった役にドラを１枚追加である状態の点数を振りこんだ人が逆にもらえる。\n<li>嘘でなかったら、あがった役にドラを１枚追加である状態の点数を支払う。\n</ol>\n</p><p>注意：待ちによっては嘘でも嘘をつかなくても上がれる状況が起こる。\n<div class=\"rule-tiles\">\n{{tile:9}}{{tile:10}}{{tile:11}}\n{{tile:18}}{{tile:19}}{{tile:20}}\n{{tile:0}}{{tile:1}}{{tile:2}}\n{{tile:33}}{{tile:33}}{{tile:32}}{{tile:32}}\n</div>\nこの例では{{tile:33}}{{tile:32}}待ちであるので、\n{{tile:33}}あるいは{{tile:32}}が出た場合は嘘をついても嘘をつかなくても上がることができる。<br>上がる側の宣言は振り込んだ側の宣言のあとなのでこのような待ちでの上がりは必ず得をする形である。\n</p><br><h4>その他のルール</h4>\n<ul>\n<li>鳴きとロンあわせて3つの嘘を見破られずにあがったら、満貫。<br>(もちろん普通の上がり役のほうが高かったらそちらを優先できる。)<br>嘘が４つなら役満。嘘が５つならダブル役満（３ウーソー、４ウーソー、５ウーソー。オールマイティの影響を受けない）。{{note:uso}}</p><li>役満は10翻扱い（オールマイティによって減る事は有る）。ダブル役満は26翻（普通のダブル役満）。</p><li>点数は15000持ちの15000返しくらいが良いと思われる。{{note:score}}\n</ul>\n<h4>追加ルール</h4>\n<ul>\n<li>ダウトロンの時に点数は普通の役と同じで、\nダウトであるかについては別判定で2000点固定とする。\n<li>ダウト割れ目。\nこれは割れ目にあたったプレイヤーはダウトに関する点数のみ全て2倍になる。\nつまり通常ダウトは2000点、即ダウトは4000点のやりとりになる。\nまた3ウーソーは倍満...になり、ダウトロンに関してもその効果が倍になる。\n</ul>{{note:extra}}<br><br>",
+  "body": "<p>このルールではオールマイティが入っていることを前提とする<br>(オールマイティのルールは<a href=\"#\" class=\"rule-xlink\" data-open-rule=\"allmighty\">オールマイティ麻雀</a>参照)。<br>オールマイティの枚数は４枚あるいは８枚が適当と思われる。</p><p>この麻雀では様々なうそをつくことができる。それは以下の場合である。\n<ul>\n<li>鳴くとき\n<li>リーチをかけるとき\n<li>ロンあがりを宣言するとき\n</ul>\nこのそれぞれについて順番に説明していく。</p><p>まず、鳴くときである。<br>鳴くとき自分の牌は伏せてだし、鳴いた牌を取る。<br>ここで嘘をついても良い。ちなみにポンよりカンの方が強い。<br>鳴くことのできる位置は普通の麻雀どおり、ポンやカンはどこからでも、チーは上家からのみ可能である。<br>鳴いた牌以外は伏せてしまうため、ポンやチーの形を決めておくとよい\n<br>（カンは４枚あるので特に決めなくても鳴いた場所さえ分かるようにしておけばよい)。</p><div class=\"rule-tiles\">\n{{tile:33:rot}}<br>{{tile:back}}{{tile:back}}\n</div><br>筆者たちの取り決めではポンは上の図のように重ね、上家から鳴いた場合は左、<br>下家から鳴いた場合は右、対面から鳴いた場合は真ん中を見える牌にする。<br>上の例では中を対面から鳴いた図である。\n<div class=\"rule-tiles\">\n{{tile:back}}{{tile:back}}{{tile:6:rot}}\n</div><br>また、筆者たちの取り決めではチーは上の図のように重ね、左が一番小さな数字、<br>右が一番大きな数字である。上の例では{{tile:4}}{{tile:5}}\nを持っていて、{{tile:6}}をチーしたという主張である。<p>伏せてある鳴きに関して鳴いた人以外はダウトをいつでもかけることができる。<br>ダウトをかけられたなきをした人は嘘であったら(本当でも嘘として処理する事もできる)<br>ダウトをかけた人に1000点払い、なきの３牌を手牌に入れる<br>（カンの場合は１枚をランダムに捨てて、残りを手牌に入れる）。<br>嘘でなかったら、1000点払って同様の事をする(嘘のふりをする)か、牌をオープンしてダウトをかけた人から1000点もらう。<br>このとき、手牌に入ってしまった鳴かれた牌は鳴かれた人のフリテンではなくなる(証拠が無くなる)ので注意。<br>また、ダウト宣言のとき、鳴いてからその人がが捨てるまでにダウトをかけたら、即ダウトといって、点数のやりとりは2000点になる。\n</p>{{note:kakan}}<p><br>注意：ダウトは「いつでも」かけられるのだが、このゲームでは発声優先なので、<br>誰かがツモあるいはロンといった上がり宣言をした瞬間にその局はそれ以上鳴きに対してダウトをかけることはできなくなる。\n</p><br><p>次にリーチをかけるときである。リーチは自分の番に解除する事ができる。<br>そのため、ノーテンリーチをかけることは自由である。但し出したリーチ棒はそのままである。<br>もちろん、流局でノーテンリーチがばれた場合は決められたペナルティを支払わなければならない。</p><br><p>また、リーチはかけてから3順ごとの自分の番に1000点を出して1翻増やせる（リーチを何重にもかけられる、３順ごとに１回リーチ）。<br>この役は普通の役として扱うので例えばオールマイティが２枚あってもリーチを３回かけていれば上がることができる。<br>もちろん、出した1000点は普通のリーチ棒と同じように扱う。\n</p><br><p>最後にロン上がりのときである。<br>数牌が待ちであれば、違う種類の同じ数字でもロンが言え、<br>字牌で東南西北のときはそのどれでもロンが言え、白發中のときはそのどれでもロンが言える。\n<div class=\"rule-tiles\">{{tile:10}}{{tile:11}}{{tile:12}}\n{{tile:13}}{{tile:14}}{{tile:15}}\n{{tile:20}}{{tile:20}}{{tile:20}}\n{{tile:21}}{{tile:22}}{{tile:24}}\n{{tile:13:red}}&nbsp&nbsp\n</div><br>この例では、本当の待ちは{{tile:19}}{{tile:20}}\n{{tile:21}}{{tile:22}}{{tile:23}}\n{{tile:24}}{{tile:25}}{{tile:26}}\nであるので、<br>{{tile:10}}{{tile:11}}\n{{tile:12}}{{tile:13}}{{tile:14}}\n{{tile:15}}{{tile:16}}{{tile:17}}\n{{tile:1}}{{tile:2}}\n{{tile:3}}{{tile:4}}{{tile:5}}\n{{tile:6}}{{tile:7}}{{tile:8}}\nであってもロン宣言をすることができる。<br>ただし、本当の待ち以外は見逃してもフリテンにはならない。<br>ロンをしたときにはすぐに手牌を開けず、振りこんだ人がダウトを言うかどうかを決めてから開ける。\n<ol>\n<li>ダウトを言わなかった場合\n<ul>\n<li>嘘でなかったら普通に点数を支払う。\n<li>嘘であったら普通の役にドラを１枚追加である状態の点数を支払う。\n</ul>\n<li>ダウトを言った場合\n<ul>\n<li>嘘であったら、あがった役にドラを１枚追加である状態の点数を振りこんだ人が逆にもらえる。\n<li>嘘でなかったら、あがった役にドラを１枚追加である状態の点数を支払う。\n</ol>\n</p><p>注意：待ちによっては嘘でも嘘をつかなくても上がれる状況が起こる。\n<div class=\"rule-tiles\">\n{{tile:9}}{{tile:10}}{{tile:11}}\n{{tile:18}}{{tile:19}}{{tile:20}}\n{{tile:0}}{{tile:1}}{{tile:2}}\n{{tile:33}}{{tile:33}}{{tile:32}}{{tile:32}}\n</div>\nこの例では{{tile:33}}{{tile:32}}待ちであるので、\n{{tile:33}}あるいは{{tile:32}}が出た場合は嘘をついても嘘をつかなくても上がることができる。<br>上がる側の宣言は振り込んだ側の宣言のあとなのでこのような待ちでの上がりは必ず得をする形である。\n</p><br><h4>その他のルール</h4>\n<ul>\n<li>鳴きとロンあわせて3つの嘘を見破られずにあがったら、満貫。<br>(もちろん普通の上がり役のほうが高かったらそちらを優先できる。)<br>嘘が４つなら役満。嘘が５つならダブル役満（３ウーソー、４ウーソー、５ウーソー。オールマイティの影響を受けない）。{{note:uso}}</p><li>役満は10翻扱い（オールマイティによって減る事は有る）。ダブル役満は26翻（普通のダブル役満）。</p><li>点数は15000持ちの15000返しくらいが良いと思われる。{{note:score}}\n</ul>\n<h4>追加ルール</h4>\n<ul>\n<li>ダウトロンの時に点数は普通の役と同じで、\nダウトであるかについては別判定で2000点固定とする。\n<li>ダウト割れ目。\nこれは割れ目にあたったプレイヤーはダウトに関する点数のみ全て2倍になる。\nつまり通常ダウトは2000点、即ダウトは4000点のやりとりになる。\nまた3ウーソーは倍満...になり、ダウトロンに関してもその効果が倍になる。\n</ul>{{note:extra}}<br><br>",
   "notes": {
-   "kanundo": "アプリでは、即ダウトでカンが崩れた場合は全ての牌が手牌に戻り、そのまま自分の捨て牌で進行します（1枚をランダムに捨てるのは、後からダウトされて崩れた場合だけです）。なお、河に落ちたその1枚は鳴くことはできませんが、ロンできます。",
    "kakan": "アプリでは加槓にも嘘をつけます。伏せたポン（公開済みのポンも含みます）に手牌から1枚を伏せて加えてカンだと主張でき、その加えた1枚がダウトの対象になります（原典に加槓の嘘の規定はありません）。",
    "uso": "アプリでは4ウーソーの役満は、オールマイティ（ワイルド）の枚数ぶん翻数が減ります（10翻から引いて、役満でなくなることもあります）。5ウーソーのダブル役満は原典どおり影響を受けません。",
-   "score": "アプリでは点数は通常の設定（開始点・返し点）を使います。",
-   "extra": "アプリではこの「追加ルール」（ダウトロン固定2000点・ダウト割れ目）は採用していません。"
+   "score": "アプリでは、設定の「ダウト系: 点数」で「原典推奨」を選ぶとこの点数（15000持ち・15000返し）になります。初期設定は通常の設定（開始点・返し点）です。",
+   "extra": "アプリでは、設定の「ダウト系: 追加ルール」をONにするとこの追加ルールが適用されます（ダウトロンは通常精算＋別判定2000点固定、割れ目はダウト関係の点数が全て2倍）。初期設定はOFFです。"
   }
  },
  {
@@ -9041,7 +9183,7 @@ var RULE_PAGES = [
   "body": "<p>この麻雀はタッグ麻雀の\n<ul>\n<li>筒子のメンツはメンゼンで持っていると１翻つく（ドラ扱い）\n</ul>\n以外のルールとダウト麻雀の\n<ul>\n<li>リーチはかけてから3順以降は自分の番に1000点を出して1翻増やせる\n（リーチを何重にもかけられる、３順ごとに１回リーチ）\n</ul>以外のルールを適用する。(<a href=\"#\" class=\"rule-xlink\" data-open-rule=\"group\">タッグ麻雀</a>、\n<a href=\"#\" class=\"rule-xlink\" data-open-rule=\"doubt\">ダウト麻雀</a>のルールを参照。)</p><p>また、味方には即ダウトはかけられない。{{note:yukkuri}}<br>また、相手チームに対しては「ゆっくりダウト」を牌を捨てる前に予約することができる。<br>「ゆっくりダウト」とは、即ダウトではないことを明示するダウトだが、<br>これを予約することで味方からのダウトがかかる前に相手にダウトをすることができる。</p><br><p>点数は18000持ちの20000返しくらいが良いと思われる。</p>{{note:score}}<br><br>",
   "notes": {
    "yukkuri": "アプリでは「ゆっくりダウト」の予約制はなく、相手へのダウトはボタンでいつでも即解決されます（味方に即ダウトがかけられない点は原典どおりです）。",
-   "score": "アプリでは点数は通常の設定（開始点・返し点）を使います。"
+   "score": "アプリでは、設定の「ダウト系: 点数」で「原典推奨」を選ぶとこの点数（18000持ち・20000返し）になります。初期設定は通常の設定（開始点・返し点）です。"
   }
  },
  {
