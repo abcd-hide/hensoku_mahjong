@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-24-120]</title>
+<title>変則麻雀 [build 2026-11-24-121]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -246,7 +246,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-24-120</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-24-121</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -350,6 +350,8 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
           <option value="five">5</option>
           <option value="flower">春夏秋冬</option>
         </select></label>
+      <label><input type="checkbox" id="set-doubtextraron"> ダウト系: 追加ルール「ダウトロン固定2000点」</label>
+      <label><input type="checkbox" id="set-doubtextrawareme"> ダウト系: 追加ルール「ダウト割れ目」</label>
       <label>ロールプレイ: 特技の数
         <select id="set-rpabilities">
           <option value="1">1つのみ</option>
@@ -360,16 +362,6 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
           <option value="current">現行（宣言・却下2000点）</option>
           <option value="revised">改正案（ストップ却下3000点・+1翻なし）</option>
           <option value="improved">改善案（宣言なし・2人上がるまで）</option>
-        </select></label>
-      <label>ダウト系: 点数
-        <select id="set-doubtscore">
-          <option value="normal">通常の設定</option>
-          <option value="original">原典推奨（ダウト15000・タッグ18000）</option>
-        </select></label>
-      <label>ダウト系: 追加ルール
-        <select id="set-doubtextra">
-          <option value="off">なし</option>
-          <option value="on">あり（ダウトロン別判定・割れ目）</option>
         </select></label>
       <p class="note">サバイバルは原典通り10000点持ち・点数は減る一方、ドボンで終了。</p>
     </fieldset>
@@ -1327,8 +1319,8 @@ var DEFAULT_SETTINGS = {
   doubtWilds: 4, // ダウト系のオールマイティ枚数 (4 or 8)
   doubtWildKind: 'five', roleplayAbilities: 1, // ダウト系の万能牌の種類: 'five' = 5, 'flower' = 春夏秋冬
   chainMode: 'current', // チェインの方式: 'current' 現行 / 'revised' 改正案(2003) / 'improved' 改善案(2024)
-  doubtScore: 'normal', // ダウト系の点数: 'normal' 通常設定 / 'original' 原典推奨 (ダウト15000/15000・ダウトタッグ18000/20000)
-  doubtExtra: false // ダウト追加ルール (ダウトロン別判定2000点固定・ダウト割れ目): true で有効
+  doubtExtraRon: false, // ダウト追加ルール「ダウトロン固定2000点」: ダウトされたロンは通常精算+別判定2000点固定 (bd指示 2026-11-24: 個別チェックボックス)
+  doubtExtraWareme: false // ダウト追加ルール「ダウト割れ目」: 毎局1人選ばれ、当事者のダウト関連金額が全て2倍
 };
 var S = loadSettings();
 function loadSettings() {
@@ -1544,7 +1536,7 @@ function nextHand(first) {
   log('―― ' + roundName() + (G.honba ? ' ' + G.honba + '本場' : '') + ' 開始 ――');
   G.discardStream = []; G.forcedTurns = null; G.shibari = null; G.lastRevolutionEnd = 0; G.shibariRestrict = null; G.justCalledPi = null; G.unoDir = 1; G.unoTop = null; G.unoPending = 0; G.unoPending4 = false; G.chainOut = {}; G.chainPending = {}; G.chainContinued = false; G.chainLastTeam = -1; G.chainResumePi = 0; G.chainWinOrder = []; G.bridgeNoRon = null; G.bridgePlayed = {}; G.napoleon = null; G.napoleonPhaseDone = false; G.napoleonStarter = -1; G.narabeBoard = { man: { counts: {}, jokers: {} }, pin: { counts: {}, jokers: {} }, sou: { counts: {}, jokers: {} }, honor: { counts: {}, jokers: {} } }; G.narabeRowsDone = 0; G.narabeRowDone = {}; G.narabeSelected = null;
   // ダウト追加ルール: 割れ目を毎局ランダムに1人選ぶ (bd指示 2026-11-23)
-  G.doubtWareme = (isDoubtVariant() && S.doubtExtra) ? Math.floor(Math.random() * NP()) : -1;
+  G.doubtWareme = (isDoubtVariant() && S.doubtExtraWareme) ? Math.floor(Math.random() * NP()) : -1;
   if (G.doubtWareme >= 0) log('ダウト割れ目: ' + G.players[G.doubtWareme].name + '（この人が関係するダウトの点数は全て2倍）');
   renderAll();
   if (S.variant === 'poverty' && G.nextPoverty && G.nextPoverty.kind !== 'none') {
@@ -1648,7 +1640,7 @@ function evalWin(p, winningTileType, opts) {
       r.han += p.riichiStacks;
       r.score = MJ.scoreFromHanFu(r.han, r.fu, pi === G.dealer, isTsumo, engineSettings());
     }
-    var usoBonus = doubtUsoBonusEv(doubtUsoCount(p), evalWild + revealedWilds, pi === G.dealer, isTsumo, S.doubtExtra && G.doubtWareme === pi);
+    var usoBonus = doubtUsoBonusEv(doubtUsoCount(p), evalWild + revealedWilds, pi === G.dealer, isTsumo, S.doubtExtraWareme && G.doubtWareme === pi);
     if (usoBonus && usoBonus.score.total > r.score.total) {
       r.yaku = [{ name: usoBonus.name, han: usoBonus.han, yakuman: usoBonus.yakumanCount }];
       r.han = usoBonus.han; r.yakumanCount = usoBonus.yakumanCount; r.score = usoBonus.score;
@@ -1884,7 +1876,7 @@ function renderAll() {
   if (S.variant === 'poverty' && p.povertyRole && p.povertyRole !== 'common') flags += '<span>' + ({ tycoon: '大富豪', pauper: '大貧民', rich: '富豪', poor: '貧民' })[p.povertyRole] + '</span>';
   if (S.variant === 'chain' && p.fixed) flags += '<span>固定</span>';
   if (S.variant === 'chain' && G.chainOut && G.chainOut[pi]) flags += '<span>上がり済み</span>';
-  if (isDoubtVariant() && S.doubtExtra && G.doubtWareme === pi) flags += '<span class="wareme">割れ目</span>';
+  if (isDoubtVariant() && S.doubtExtraWareme && G.doubtWareme === pi) flags += '<span class="wareme">割れ目</span>';
   if (S.variant === 'napoleon' && G.napoleon && pi === G.napoleon.pi) flags += '<span>ナポレオン ' + G.napoleon.bid + '点・' + napoleonTrumpName(G.napoleon.trump) + '</span>';
     if (p.abilities && p.abilities.length) { flags += '<span class="ability">特技:' + p.abilities.map(function (aid) { var ab = ABILITIES.find(function (a) { return a.id === aid; }); return ab ? ab.name : ''; }).join('・') + '</span>'; }
     // ネット対戦: 切断中のリモート席にはバッジを出す (状態は G.netSeats、ホストが管理しスナップショットで配る)
@@ -3403,13 +3395,10 @@ var SANMA_TODO = []; // build103: 全バリアント対応済み
 function isSanma() { return Number(S.playerCount || 4) === 3; }
 function NP() { return G ? G.players.length : (isSanma() ? 3 : 4); }
 function sanmaAllows(v) { return !isSanma() || (SANMA_NG.indexOf(v) < 0 && SANMA_TODO.indexOf(v) < 0); }
-// ダウト系の原典推奨点数 (bd指示 2026-11-23: 設定で選べるように。サンマではサンマ用設定が優先)
-function doubtOriginalScore() {
-  if (S.doubtScore !== 'original' || !isDoubtVariant() || isSanma()) return null;
-  return S.variant === 'gdoubt' ? { start: 18000, ret: 20000 } : { start: 15000, ret: 15000 };
-}
-function startScoreNow() { var d = doubtOriginalScore(); return d ? d.start : (isSanma() ? Number(S.sanmaStartScore) : Number(S.startScore)); }
-function returnScoreNow() { var d = doubtOriginalScore(); return d ? d.ret : (isSanma() ? Number(S.sanmaReturnScore) : Number(S.returnScore)); }
+// 点数は全バリアント共通で「開始点・返し点」の設定を使う (bd指示 2026-11-24: ダウト系も専用項目を持たない。
+// 原典推奨で遊びたいときは開始点・返し点に ダウト15000/15000・ダウトタッグ18000/20000 を設定する)
+function startScoreNow() { return isSanma() ? Number(S.sanmaStartScore) : Number(S.startScore); }
+function returnScoreNow() { return isSanma() ? Number(S.sanmaReturnScore) : Number(S.returnScore); }
 function kitaInHand(p) { return p.hand.filter(function (t) { return t.t === 30; }).length; }
 function canKita(p) { return isSanma() && kitaInHand(p) > 0 && (!p.riichi || kitaInHand(p) === 1); }
 /* ================= ダウト麻雀 =================
@@ -3432,7 +3421,7 @@ function canKita(p) { return isSanma() && kitaInHand(p) > 0 && (!p.riichi || kit
    通常の役満も10翻扱い (bd指示 2026-11-19 でウーソー以外にも拡張)。ワイルドで減って
    10翻を切ると通常の翻数計算になる。ダブル役満は26翻のまま減らない。数え役満は13翻。
    上がり判定は伏せた鳴きの主張ではなく全牌の実物で行う (嘘の鳴きは面子として扱わない)。
-   追加ルール (ダウトロン固定2000・割れ目) は採用しない。 */
+   追加ルール (ダウトロン固定2000・割れ目) は設定のチェックボックスで個別に有効化できる。 */
 function doubtMatchType(waitType, discardType) {
   if (waitType === discardType) return false;
   if (waitType < 27 && discardType < 27) return waitType % 9 === discardType % 9;
@@ -3509,7 +3498,7 @@ function doubtMeldLabel(meld) {
 async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
   var amount = immediate ? 2000 : 1000;
   // 追加ルール (割れ目): 所有者かダウト者のどちらかが割れ目なら金額は2倍
-  if (S.doubtExtra && G.doubtWareme >= 0 && (G.doubtWareme === ownerPi || G.doubtWareme === doubterPi)) amount *= 2;
+  if (S.doubtExtraWareme && G.doubtWareme >= 0 && (G.doubtWareme === ownerPi || G.doubtWareme === doubterPi)) amount *= 2;
   var doubter = G.players[doubterPi], owner = G.players[ownerPi];
   if (meld.kakanHidden) {
     // 公開済みポンへの加槓に対するダウト: 判定は加えた1枚だけ。ポン自体は公開済みなので、
@@ -4086,9 +4075,9 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
       '<p>' + discarder.name + ' から ' + pay + '点</p>' + (note ? '<p>（' + note + '）</p>' : '') + (extraHtml || '');
     return finishHand({ winner: qi, ev: ev, html: html, multiWinners: [qi] });
   }
-  // 追加ルール (原典): ダウトの成否は上がりの精算とは別判定で2000点固定。
+  // 追加ルール「ダウトロン固定2000点」 (原典): ダウトの成否は上がりの精算とは別判定で2000点固定。
   // 嘘なら宣言者がダウトした人に払い、本物ならダウトした人が宣言者に払う。
-  // 割れ目が当事者 (宣言者か振り込んだ人) の場合は4000点。
+  // 「ダウト割れ目」もONで割れ目が当事者 (宣言者か振り込んだ人) の場合は4000点。
   function doubtRonJudgment(fake) {
     var j = (G.doubtWareme >= 0 && (G.doubtWareme === qi || G.doubtWareme === pi)) ? 4000 : 2000;
     if (fake) {
@@ -4101,12 +4090,12 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
     return discarder.name + ' はダウト失敗の別判定で ' + q.name + ' に ' + j + ' 点を支払いました';
   }
   if (fakeEv && !trueEv) {
-    var bonus = doubtUsoBonusEv(doubtUsoCount(q) + 1, doubtWildTotal(q), qi === G.dealer, false, S.doubtExtra && G.doubtWareme === qi);
+    var bonus = doubtUsoBonusEv(doubtUsoCount(q) + 1, doubtWildTotal(q), qi === G.dealer, false, S.doubtExtraWareme && G.doubtWareme === qi);
     var evF = doubtPlusOneDora(fakeEv, qi, false, 'fake');
     if (bonus && bonus.score.total > evF.score.total) {
       evF = { yaku: [{ name: bonus.name, han: bonus.han, yakuman: bonus.yakumanCount }], han: bonus.han, fu: 40, yakumanCount: bonus.yakumanCount, score: bonus.score };
     }
-    if (doubtIt && S.doubtExtra) {
+    if (doubtIt && S.doubtExtraRon) {
       // 追加ルール: 嘘ロンでも上がり自体は通常精算し、ダウトの成否は別判定で処理する
       var noteJ = doubtRonJudgment(true);
       if (doubtTobiCheck()) return true;
@@ -4144,7 +4133,7 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
     // 本物でも嘘でも宣言できる待ち: ダウトされたら本物として、されなければ嘘ロンとして精算する
     // (宣言した側が高く上がれる方に倒す — ユーザー指示 2026-11-15)
     if (doubtIt) {
-      if (S.doubtExtra) {
+      if (S.doubtExtraRon) {
         // 追加ルール: 本物として通常精算 (ドラ+1なし) + 別判定
         var noteJ2 = doubtRonJudgment(false);
         if (doubtTobiCheck()) return true;
@@ -4154,7 +4143,7 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
       var evT2 = doubtPlusOneDora(trueEv, qi, false);
       await finishWith(evT2, 'ダウトされたが本当（ドラ+1）');
     } else {
-      var bonus2 = doubtUsoBonusEv(doubtUsoCount(q) + 1, doubtWildTotal(q), qi === G.dealer, false, S.doubtExtra && G.doubtWareme === qi);
+      var bonus2 = doubtUsoBonusEv(doubtUsoCount(q) + 1, doubtWildTotal(q), qi === G.dealer, false, S.doubtExtraWareme && G.doubtWareme === qi);
       var evF2 = doubtPlusOneDora(fakeEv, qi, false, 'fake');
       if (bonus2 && bonus2.score.total > evF2.score.total) {
         evF2 = { yaku: [{ name: bonus2.name, han: bonus2.han, yakuman: bonus2.yakumanCount }], han: bonus2.han, fu: 40, yakumanCount: bonus2.yakumanCount, score: bonus2.score };
@@ -4165,7 +4154,7 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
   }
   if (trueEv) {
     if (doubtIt) {
-      if (S.doubtExtra) {
+      if (S.doubtExtraRon) {
         // 追加ルール: 本物として通常精算 (ドラ+1なし) + 別判定
         var noteJ3 = doubtRonJudgment(false);
         if (doubtTobiCheck()) return true;
@@ -4227,7 +4216,7 @@ async function doubtRonPhase(pi, tile, houtei) {
       NET.promptSeat = pi;
       var ansD = await modalChoice('<h3>' + q.name + ' がロンと宣言しました！</h3>' +
         '<p>あなたの捨て牌 ' + MJ.TILE_NAMES[tile.t] + ' に対するロンです（' + hanText(shownEvD) + ' ' + shownEvD.fu + '符）。<br>嘘だと思いますか？</p>',
-        [{ label: S.doubtExtra ? 'ダウトする！（別判定で2000点固定の移動）' : 'ダウトする！（嘘なら点数を逆にもらえる）', value: true }, { label: 'ダウトしない（通常の支払い）', value: false, cls: 'sub' }]);
+        [{ label: S.doubtExtraRon ? 'ダウトする！（別判定で2000点固定の移動）' : 'ダウトする！（嘘なら点数を逆にもらえる）', value: true }, { label: 'ダウトしない（通常の支払い）', value: false, cls: 'sub' }]);
       doubtIt = ansD === true;
     } else {
       doubtIt = Math.random() < Math.min(0.6, 0.25 + q.melds.filter(function (m) { return m.hidden || m.kakanHidden; }).length * 0.1);
@@ -7786,7 +7775,8 @@ function bindSettings() {
   var map = [['aka', 'set-aka'], ['ura', 'set-ura'], ['kandora', 'set-kandora'], ['ippatsu', 'set-ippatsu'], ['kuitan', 'set-kuitan'],
     ['kiriage', 'set-kiriage'], ['pinfu30', 'set-pinfu30'], ['kazoe', 'set-kazoe'], ['doubleYakuman', 'set-doubleyakuman'],
     ['atamahane', 'set-atamahane'], ['tobi', 'set-tobi'], ['nagashi', 'set-nagashi'], ['openRiichi', 'set-openriichi'],
-    ['daisharin', 'set-daisharin'], ['renkou', 'set-renkou'], ['sound', 'set-sound'], ['voice', 'set-voice']];
+    ['daisharin', 'set-daisharin'], ['renkou', 'set-renkou'], ['sound', 'set-sound'], ['voice', 'set-voice'],
+    ['doubtExtraRon', 'set-doubtextraron'], ['doubtExtraWareme', 'set-doubtextrawareme']];
   document.querySelectorAll('input[name="variant"]').forEach(function (el) {
     el.checked = el.value === S.variant;
     el.addEventListener('change', function () { S.variant = el.value; saveSettings(); updateVariantDesc(); });
@@ -7822,8 +7812,6 @@ function bindSettings() {
   $('set-doubtwildkind').value = S.doubtWildKind || 'five'; $('set-doubtwildkind').addEventListener('change', function (e) { S.doubtWildKind = e.target.value; saveSettings(); });
   $('set-rpabilities').value = String(S.roleplayAbilities || 1); $('set-rpabilities').addEventListener('change', function (e) { S.roleplayAbilities = Number(e.target.value); saveSettings(); });
   $('set-chainmode').value = S.chainMode || 'current'; $('set-chainmode').addEventListener('change', function (e) { S.chainMode = e.target.value; saveSettings(); });
-  $('set-doubtscore').value = S.doubtScore || 'normal'; $('set-doubtscore').addEventListener('change', function (e) { S.doubtScore = e.target.value; saveSettings(); });
-  $('set-doubtextra').value = S.doubtExtra ? 'on' : 'off'; $('set-doubtextra').addEventListener('change', function (e) { S.doubtExtra = e.target.value === 'on'; saveSettings(); });
   updateVariantDesc();
 }
 function updateVariantDesc() { $('variant-desc').textContent = VARIANT_DESC[S.variant] || ''; }
@@ -9172,8 +9160,8 @@ var RULE_PAGES = [
   "notes": {
    "kakan": "アプリでは加槓にも嘘をつけます。伏せたポン（公開済みのポンも含みます）に手牌から1枚を伏せて加えてカンだと主張でき、その加えた1枚がダウトの対象になります（原典に加槓の嘘の規定はありません）。",
    "uso": "アプリでは4ウーソーの役満は、オールマイティ（ワイルド）の枚数ぶん翻数が減ります（10翻から引いて、役満でなくなることもあります）。5ウーソーのダブル役満は原典どおり影響を受けません。",
-   "score": "アプリでは、設定の「ダウト系: 点数」で「原典推奨」を選ぶとこの点数（15000持ち・15000返し）になります。初期設定は通常の設定（開始点・返し点）です。",
-   "extra": "アプリでは、設定の「ダウト系: 追加ルール」をONにするとこの追加ルールが適用されます（ダウトロンは通常精算＋別判定2000点固定、割れ目はダウト関係の点数が全て2倍）。初期設定はOFFです。"
+   "score": "アプリでは点数は設定の「開始点」「返し点」で決まります。原典の推奨（15000持ち・15000返し）で遊びたいときは、開始点に15000・返し点に15000を設定してください。",
+   "extra": "アプリでは、設定のチェックボックス「ダウトロン固定2000点」「ダウト割れ目」で、この2つの追加ルールを別々にONにできます（ダウトロンは通常精算＋別判定2000点固定、割れ目はダウト関係の点数が全て2倍）。初期設定はどちらもOFFです。"
   }
  },
  {
@@ -9183,7 +9171,7 @@ var RULE_PAGES = [
   "body": "<p>この麻雀はタッグ麻雀の\n<ul>\n<li>筒子のメンツはメンゼンで持っていると１翻つく（ドラ扱い）\n</ul>\n以外のルールとダウト麻雀の\n<ul>\n<li>リーチはかけてから3順以降は自分の番に1000点を出して1翻増やせる\n（リーチを何重にもかけられる、３順ごとに１回リーチ）\n</ul>以外のルールを適用する。(<a href=\"#\" class=\"rule-xlink\" data-open-rule=\"group\">タッグ麻雀</a>、\n<a href=\"#\" class=\"rule-xlink\" data-open-rule=\"doubt\">ダウト麻雀</a>のルールを参照。)</p><p>また、味方には即ダウトはかけられない。{{note:yukkuri}}<br>また、相手チームに対しては「ゆっくりダウト」を牌を捨てる前に予約することができる。<br>「ゆっくりダウト」とは、即ダウトではないことを明示するダウトだが、<br>これを予約することで味方からのダウトがかかる前に相手にダウトをすることができる。</p><br><p>点数は18000持ちの20000返しくらいが良いと思われる。</p>{{note:score}}<br><br>",
   "notes": {
    "yukkuri": "アプリでは「ゆっくりダウト」の予約制はなく、相手へのダウトはボタンでいつでも即解決されます（味方に即ダウトがかけられない点は原典どおりです）。",
-   "score": "アプリでは、設定の「ダウト系: 点数」で「原典推奨」を選ぶとこの点数（18000持ち・20000返し）になります。初期設定は通常の設定（開始点・返し点）です。"
+   "score": "アプリでは点数は設定の「開始点」「返し点」で決まります。原典の推奨（18000持ち・20000返し）で遊びたいときは、開始点に18000・返し点に20000を設定してください。"
   }
  },
  {
