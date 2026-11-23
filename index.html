@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-22-116]</title>
+<title>変則麻雀 [build 2026-11-23-117]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -23,6 +23,11 @@ button:disabled { opacity: .45; cursor: default; }
 #net-panel h2 { margin-top: 0; }
 #net-panel h3 { margin: 10px 0 4px; }
 .net-chat { height: 110px; overflow-y: auto; background: #fff; color: #222; border: 1px solid #bbb; border-radius: 6px; padding: 4px 8px; font-size: 13px; margin-bottom: 6px; }
+/* 要望・バグ報告モーダル */
+#rep-text { width: 100%; box-sizing: border-box; font-size: 1em; padding: 6px; }
+#rep-cat { font-size: 1em; }
+.rep-ctx { font-size: .85em; color: #555; }
+#rep-msg { min-height: 1.3em; font-weight: bold; }
 .net-table-row { display: flex; justify-content: space-between; align-items: center; background: #fff; border: 1px solid #bbb; border-radius: 6px; padding: 4px 8px; margin: 4px 0; }
 #net-match-chat { margin-top: 8px; }
 #net-match-chat-log { height: 90px; margin-top: 4px; }
@@ -218,9 +223,10 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-22-116</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-23-117</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
+    <button id="btn-report">要望・バグ報告</button>
     <button id="btn-nocall">鳴きなし: OFF</button>
     <button id="btn-nodoubt">ダウト主張なし: OFF</button>
     <button id="btn-settings">ルール設定</button>
@@ -1430,6 +1436,9 @@ function startMatch() {
     dealer: dealerBase0, dealerBase: dealerBase0, roundNum: 0, honba: 0, kyotaku: 0, handNo: 0, over: false, abilityPool: {}, nextPoverty: { kind: 'none' } };
   G.players.forEach(function (p) { p.score = startScore; });
   G.handNo = 0;
+  // アクセス統計: 対局開始を1回だけ数える (ローカル開始もネットのホスト開始も
+  // ここを通る。ゲストは startMatch を呼ばないので数えない)
+  statsSend('match', { variant: S.variant, players: NP() });
   nextHand(true);
 }
 function roundWindOf() { return 27 + Math.floor(G.handNo / NP()) % 2; } // 東場/南場のみ
@@ -7641,6 +7650,74 @@ function showCredit() {
   $('btn-credit-close').addEventListener('click', hideModal);
 }
 $('btn-credit').addEventListener('click', showCredit);
+/* ---------- アクセス統計と要望・バグ報告 ----------
+   統計は公開サイト (github.io) でのみ数える (bd のローカル検証を集計に混ぜない)。
+   送信は fire-and-forget で、失敗しても対局は絶対に妨げない。
+   要望・バグ報告はローカルファイルからでも送れる (報告は正規の利用のため)。 */
+function statsHttpBase() { return NET_RELAY_URL.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:'); }
+function statsOnPublicSite() {
+  try { var h = location.hostname || ''; return h.slice(-10) === '.github.io'; } catch (e) { return false; }
+}
+function statsVid() {
+  try {
+    var v = localStorage.getItem('hensokuVid');
+    if (!v) { v = 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12); localStorage.setItem('hensokuVid', v); }
+    return v;
+  } catch (e) { return ''; }
+}
+function statsSend(kind, extra) {
+  try {
+    if (!statsOnPublicSite()) return;
+    var body = { kind: kind, vid: statsVid() };
+    if (extra) { for (var k in extra) body[k] = extra[k]; }
+    fetch(statsHttpBase() + '/collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), keepalive: true }).catch(function () {});
+  } catch (e) { /* 統計の失敗で対局を止めない */ }
+}
+function reportCtx() {
+  var build = '';
+  var bel = document.querySelector('h1 .build');
+  if (bel) build = (bel.textContent || '').trim();
+  var players = 4;
+  try { players = NP(); } catch (e) { players = isSanma() ? 3 : 4; }
+  var mode = (typeof NET !== 'undefined' && NET && NET.mode === 'host') ? 'ネット（ホスト）'
+    : (typeof NET !== 'undefined' && NET && NET.mode === 'guest') ? 'ネット（ゲスト）' : 'ローカル';
+  return { build: build, variant: S.variant, players: players, mode: mode };
+}
+function showReport() {
+  var ctx = reportCtx();
+  showModal('<h3>要望・バグ報告</h3>' +
+    '<p>欲しい機能や、見つけた不具合を送ってください。</p>' +
+    '<p><label>種類: <select id="rep-cat"><option value="要望">要望</option><option value="バグ">バグ報告</option></select></label></p>' +
+    '<p><textarea id="rep-text" rows="6" placeholder="内容を入力してください（最大2000文字）"></textarea></p>' +
+    '<p class="rep-ctx">あわせて送信される情報: ' + ctx.build + ' / ' + ctx.variant + ' / ' + ctx.players + '人 / ' + ctx.mode + '</p>' +
+    '<div id="rep-msg"></div>' +
+    '<div class="modal-btns"><button id="btn-rep-send">送信</button><button id="btn-rep-close" class="sub">閉じる</button></div>');
+  $('btn-rep-close').addEventListener('click', hideModal);
+  $('btn-rep-send').addEventListener('click', sendReport);
+  var ta = $('rep-text'); if (ta) ta.focus();
+}
+function sendReport() {
+  var catEl = $('rep-cat'), ta = $('rep-text'), msg = $('rep-msg'), btn = $('btn-rep-send');
+  if (!ta || !msg) return;
+  var text = (ta.value || '').trim();
+  if (!text) { msg.textContent = '内容を入力してください。'; return; }
+  if (text.length > 2000) { msg.textContent = '2000文字以内で入力してください。'; return; }
+  if (btn) btn.disabled = true;
+  msg.textContent = '送信中…';
+  fetch(statsHttpBase() + '/report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cat: catEl ? catEl.value : '要望', text: text, ctx: reportCtx() }), keepalive: true })
+    .then(function (r) {
+      if (!r.ok) throw new Error('status ' + r.status);
+      msg.textContent = '送信しました。ありがとうございます！';
+      ta.value = '';
+      if (btn) btn.disabled = false;
+    })
+    .catch(function () {
+      // 失敗時は入力を残す (消さない) のが大事
+      msg.textContent = '送信に失敗しました。通信環境を確認して、もう一度お試しください。（入力した内容は消えていません）';
+      if (btn) btn.disabled = false;
+    });
+}
+$('btn-report').addEventListener('click', showReport);
 /* 鳴きなしフラグ (bd指示 2026-11-19): ヘッダのボタンでいつでも付け外しできる */
 function noCallOn() { return !!S.noCall; }
 function syncNoCallBtn() { var b = $('btn-nocall'); if (b) b.textContent = '鳴きなし: ' + (S.noCall ? 'ON' : 'OFF'); }
@@ -8666,6 +8743,7 @@ function netCreateTable() {
   NET.seatOrder = [0]; for (var so = 1; so < NET.tableSeats; so++) NET.seatOrder.push(null);
   NET.seatManual = false;
   var tableId = 't-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+  statsSend('table'); // アクセス統計: 卓作成を数える
   netConnectLobby();
   netConnectTable(tableId, { title: NET.name + 'の卓', variant: S.variant, seats: NET.tableSeats });
   netShowTableView();
@@ -8752,6 +8830,7 @@ function netInit() {
   });
 }
 netInit();
+statsSend('visit'); // アクセス統計: ページ表示を数える (公開サイトのみ、ページ読み込みごとに1回)
 
 </script>
 </body>
