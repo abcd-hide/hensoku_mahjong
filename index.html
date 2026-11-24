@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-24-121]</title>
+<title>変則麻雀 [build 2026-11-24-122]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -246,7 +246,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-24-121</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-24-122</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -1632,6 +1632,24 @@ function evalWin(p, winningTileType, opts) {
   if (r && isSanma() && p.kita && p.kita.length && !r.yakumanCount) {
     r.yaku.push({ name: '抜きドラ', han: p.kita.length });
     r.han += p.kita.length;
+    // ドラ表示が西 (ドラ=北) のときは、抜いた北も通常のドラとして数える (bd指示 2026-11-24)。
+    // 裏ドラ表示が西のときも同様 (リーチ時のみ)。半額の「ドラを使えない」は抜き側にも適用する。
+    if (!ctx.noDora) {
+      var kitaDora = p.kita.length * ctx.doraTypes.filter(function (d) { return d === 30; }).length;
+      if (kitaDora > 0) {
+        var dEnt = r.yaku.find(function (y) { return y.name === 'ドラ'; });
+        if (dEnt) dEnt.han += kitaDora; else r.yaku.push({ name: 'ドラ', han: kitaDora });
+        r.han += kitaDora;
+      }
+      if (ctx.riichi && ctx.uraDoraTypes && ctx.settings.uraDora !== false) {
+        var kitaUra = p.kita.length * ctx.uraDoraTypes.filter(function (d) { return d === 30; }).length;
+        if (kitaUra > 0) {
+          var uEnt = r.yaku.find(function (y) { return y.name === '裏ドラ'; });
+          if (uEnt) uEnt.han += kitaUra; else r.yaku.push({ name: '裏ドラ', han: kitaUra });
+          r.han += kitaUra;
+        }
+      }
+    }
     r.score = MJ.scoreFromHanFu(r.han, r.fu, pi === G.dealer, isTsumo, engineSettings());
   }
   if (isDoubtVariant() && r) {
@@ -9178,7 +9196,7 @@ var RULE_PAGES = [
   "id": "sanma",
   "name": "サンマ（3人麻雀）",
   "summary": "アプリ独自の追加。萬子2〜8なし・北抜きあり",
-  "body": "<p>サンマ（3人麻雀）は2005年の原典にはない、アプリ独自の追加ルールです。設定の「人数」で3人を選ぶと、各バリアントを3人で遊べます。{{note:added}}</p><p>萬子の2〜8を除いた108枚で打ちます。チーはできません（ロールプレイで特技「どこチー」を取った場合だけ、どこからでもチーできます）。北を手牌から抜いて表向きに置く「北抜き」ができ、北1枚につきドラ+1、嶺上から補充します（リーチ中は北が1枚のときだけ抜けます）。</p><p>35000点持ち・40000点返しです（開始点・返し点・ウマはサンマ専用の設定で変更できます）。ツモ損ありで、ツモの支払いは実在の2人だけです。流局のテンパイ料は3000点を3人で分けます。東風戦は3局（東3局まで）、半荘戦は6局（南3局まで）です。</p><p>二人・タッグ・ダウトタッグ・チェイン・ナポレオンは、人数やチーム制の都合でサンマでは選べません。UNOだけは「2/5/8/11/14枚で上がり」の枚数ルールと競合するため、北抜きがありません。</p>",
+  "body": "<p>サンマ（3人麻雀）は2005年の原典にはない、アプリ独自の追加ルールです。設定の「人数」で3人を選ぶと、各バリアントを3人で遊べます。{{note:added}}</p><p>萬子の2〜8を除いた108枚で打ちます。チーはできません（ロールプレイで特技「どこチー」を取った場合だけ、どこからでもチーできます）。北を手牌から抜いて表向きに置く「北抜き」ができ、北1枚につきドラ+1、嶺上から補充します（リーチ中は北が1枚のときだけ抜けます）。ドラ表示が西のときは、抜いた北も通常のドラとして数えます（裏ドラ表示が西のときも同様です）。</p><p>35000点持ち・40000点返しです（開始点・返し点・ウマはサンマ専用の設定で変更できます）。ツモ損ありで、ツモの支払いは実在の2人だけです。流局のテンパイ料は3000点を3人で分けます。東風戦は3局（東3局まで）、半荘戦は6局（南3局まで）です。</p><p>二人・タッグ・ダウトタッグ・チェイン・ナポレオンは、人数やチーム制の都合でサンマでは選べません。UNOだけは「2/5/8/11/14枚で上がり」の枚数ルールと競合するため、北抜きがありません。</p>",
   "notes": {
    "added": "サンマ自体がアプリ独自の追加ルールです（原典の各ページに3人打ちの記載はありません）。"
   }
