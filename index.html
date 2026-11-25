@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-25-123]</title>
+<title>変則麻雀 [build 2026-11-25-124]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -246,7 +246,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-25-123</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-25-124</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -1342,6 +1342,9 @@ function engineSettings() {
 // ラベルだけ古いまま残ると「8翻なのに満貫」のような表示になる (bd報告 2026-11-25、build123)。
 function refreshEvLabel(ev) { if (ev) ev.label = MJ.HAN_LABEL(ev.han, ev.yakumanCount || 0, engineSettings()); return ev; }
 function rescoreEv(ev, pi, isTsumo) { if (!ev) return ev; ev.score = MJ.scoreFromHanFu(ev.han, ev.fu, pi === G.dealer, isTsumo, engineSettings()); return refreshEvLabel(ev); }
+// 「役満の手」かどうか。ダウトでは役満がワイルドのペナルティで翻扱いに落ちると
+// yakumanCount が 0 になるが、役そのものは役満なのでドラは付けない (bd指示 2026-11-25)。
+function isYakumanEv(ev) { return !!ev && ((ev.yakumanCount || 0) > 0 || (ev.yaku || []).some(function (y) { return (y.yakuman || 0) > 0; })); }
 
 /* ---------- 効果音・ボイス ---------- */
 var AC = null;
@@ -1633,7 +1636,7 @@ function evalWin(p, winningTileType, opts) {
     yakumanBase: isDoubtVariant() ? 10 : 13,
     penaltyCredit: isDoubtVariant() ? (p.riichiStacks || 0) : 0,
     penaltyExtra: revealedWilds });
-  if (r && isSanma() && p.kita && p.kita.length && !r.yakumanCount) {
+  if (r && isSanma() && p.kita && p.kita.length && !isYakumanEv(r)) {
     r.yaku.push({ name: '抜きドラ', han: p.kita.length });
     r.han += p.kita.length;
     // ドラ表示が西 (ドラ=北) のときは、抜いた北も通常のドラとして数える (bd指示 2026-11-24)。
@@ -3491,7 +3494,7 @@ function doubtUsoBonusEv(uso, wildTotal, isDealer, isTsumo, wareme) {
   return { name: '3ウーソー（満貫）', han: 5, yakumanCount: 0, score: MJ.scoreFromHanFu(5, 40, isDealer, isTsumo, st), label: '満貫' };
 }
 function doubtPlusOneDora(ev, pi, isTsumo, kind) {
-  if (ev.yakumanCount > 0) return ev;
+  if (isYakumanEv(ev)) return ev; // 役満にはドラはつかない (翻扱いに落ちた役満も含む。bd指示 2026-11-25)
   // +1 の理由が結果表示で分かるようにする (bd指示 2026-11-19):
   // 相手にダウトされた本物ロンなら「ダウト」、嘘ロンの精算なら「嘘ロン」
   ev.yaku.push({ name: kind === 'fake' ? '嘘ロン（ドラ+1）' : 'ダウト（ドラ+1）', han: 1 });
@@ -4118,6 +4121,16 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
     log(discarder.name + ' のダウトは失敗（ダウト別判定: ' + q.name + ' に ' + j + '点）');
     return discarder.name + ' はダウト失敗の別判定で ' + q.name + ' に ' + j + ' 点を支払いました';
   }
+  // ウーソーは「鳴きとロンあわせて」数える (原典)。両面待ちをダウトされて本物として
+  // 精算する場合も、ロンの嘘 (+1) を入れたウーソー評価と比べて高い方を採る
+  // (bd確認 2026-11-25: 「4つ目はロンの嘘」)。同点なら通常の評価を優先 (従来通り)。
+  function usoBonusOr(ev) {
+    var bonus = doubtUsoBonusEv(doubtUsoCount(q) + 1, doubtWildTotal(q), qi === G.dealer, false, S.doubtExtraWareme && G.doubtWareme === qi);
+    if (bonus && bonus.score.total > ev.score.total) {
+      return { yaku: [{ name: bonus.name, han: bonus.han, yakuman: bonus.yakumanCount }], han: bonus.han, fu: 40, yakumanCount: bonus.yakumanCount, score: bonus.score, label: MJ.HAN_LABEL(bonus.han, bonus.yakumanCount, engineSettings()) };
+    }
+    return ev;
+  }
   if (fakeEv && !trueEv) {
     var bonus = doubtUsoBonusEv(doubtUsoCount(q) + 1, doubtWildTotal(q), qi === G.dealer, false, S.doubtExtraWareme && G.doubtWareme === qi);
     var evF = doubtPlusOneDora(fakeEv, qi, false, 'fake');
@@ -4167,10 +4180,10 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
         // 追加ルール: 本物として通常精算 (ドラ+1なし) + 別判定
         var noteJ2 = doubtRonJudgment(false);
         if (doubtTobiCheck()) return true;
-        await finishWith(trueEv, 'ダウトされたが本当（追加ルール: 別判定）', '<p>' + noteJ2 + '</p>');
+        await finishWith(usoBonusOr(trueEv), 'ダウトされたが本当（追加ルール: 別判定）', '<p>' + noteJ2 + '</p>');
         return true;
       }
-      var evT2 = doubtPlusOneDora(trueEv, qi, false);
+      var evT2 = usoBonusOr(doubtPlusOneDora(trueEv, qi, false));
       await finishWith(evT2, 'ダウトされたが本当（ドラ+1）');
     } else {
       var bonus2 = doubtUsoBonusEv(doubtUsoCount(q) + 1, doubtWildTotal(q), qi === G.dealer, false, S.doubtExtraWareme && G.doubtWareme === qi);
