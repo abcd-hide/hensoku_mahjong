@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-25-125]</title>
+<title>変則麻雀 [build 2026-11-25-126]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -28,6 +28,8 @@ button:disabled { opacity: .45; cursor: default; }
 #rep-cat { font-size: 1em; }
 .rep-ctx { font-size: .85em; color: #555; }
 #rep-msg { min-height: 1.3em; font-weight: bold; }
+.rep-thumb { max-width: 220px; max-height: 160px; vertical-align: middle; border: 1px solid #999; }
+.rep-err { color: #b00020; font-weight: bold; }
 .net-table-row { display: flex; justify-content: space-between; align-items: center; background: #fff; border: 1px solid #bbb; border-radius: 6px; padding: 4px 8px; margin: 4px 0; }
 #net-match-chat { margin-top: 8px; }
 #net-match-chat-log { height: 90px; margin-top: 4px; }
@@ -246,7 +248,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-25-125</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-25-126</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -7910,18 +7912,87 @@ function reportCtx() {
     : (typeof NET !== 'undefined' && NET && NET.mode === 'guest') ? 'ネット（ゲスト）' : 'ローカル';
   return { build: build, variant: S.variant, players: players, mode: mode };
 }
+var reportImage = null; // 添付画像 (base64)。送信前に canvas で再エンコードした JPEG
 function showReport() {
+  reportImage = null;
   var ctx = reportCtx();
   showModal('<h3>要望・バグ報告</h3>' +
     '<p>欲しい機能や、見つけた不具合を送ってください。</p>' +
     '<p><label>種類: <select id="rep-cat"><option value="要望">要望</option><option value="バグ">バグ報告</option></select></label></p>' +
     '<p><textarea id="rep-text" rows="6" placeholder="内容を入力してください（最大2000文字）"></textarea></p>' +
+    '<p><label>画像を添付 (任意・1枚まで): <input type="file" id="rep-file" accept="image/png,image/jpeg,image/webp,image/gif"></label></p>' +
+    '<div id="rep-preview"></div>' +
+    '<p class="rep-ctx">画像は自動で縮小・再変換 (最大1280px・JPEG化) して送ります。送る前に、名前など個人情報が写っていないか確認してください。</p>' +
     '<p class="rep-ctx">あわせて送信される情報: ' + ctx.build + ' / ' + ctx.variant + ' / ' + ctx.players + '人 / ' + ctx.mode + '</p>' +
     '<div id="rep-msg"></div>' +
     '<div class="modal-btns"><button id="btn-rep-send">送信</button><button id="btn-rep-close" class="sub">閉じる</button></div>');
   $('btn-rep-close').addEventListener('click', hideModal);
   $('btn-rep-send').addEventListener('click', sendReport);
+  $('rep-file').addEventListener('change', reportFileChosen);
   var ta = $('rep-text'); if (ta) ta.focus();
+}
+function reportBlobToB64(blob, pv) {
+  var fr = new FileReader();
+  fr.onload = function () {
+    var du = String(fr.result || '');
+    reportImage = du.replace(/^data:[^,]*,/, '');
+    if (pv) {
+      pv.innerHTML = '<img class="rep-thumb" src="' + du + '" alt="添付画像のプレビュー"> <button type="button" id="btn-rep-img-del" class="sub">画像を外す</button>';
+      var del = $('btn-rep-img-del');
+      if (del) del.addEventListener('click', function () {
+        reportImage = null;
+        var fEl = $('rep-file'); if (fEl) fEl.value = '';
+        pv.innerHTML = '';
+      });
+    }
+  };
+  fr.onerror = function () { if (pv) pv.innerHTML = '<span class="rep-err">画像の読み込みに失敗しました。</span>'; };
+  fr.readAsDataURL(blob);
+}
+function reportReadRaw(file, pv) {
+  // canvas が使えない環境向けの予備経路 (そのまま送る。実形式はサーバー側で検証される)
+  if (file.size > 512 * 1024) {
+    if (pv) pv.innerHTML = '<span class="rep-err">画像が大きすぎます (512KB以下の画像にしてください)。</span>';
+    return;
+  }
+  reportBlobToB64(file, pv);
+}
+function reportFileChosen() {
+  var fEl = $('rep-file'), pv = $('rep-preview');
+  reportImage = null;
+  if (!fEl || !fEl.files || !fEl.files.length) { if (pv) pv.innerHTML = ''; return; }
+  var file = fEl.files[0];
+  var okTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+  if (okTypes.indexOf(file.type) < 0) {
+    if (pv) pv.innerHTML = '<span class="rep-err">画像ファイル (PNG / JPEG / WebP / GIF) を選んでください。</span>';
+    fEl.value = '';
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    if (pv) pv.innerHTML = '<span class="rep-err">画像が大きすぎます (10MB以下にしてください)。</span>';
+    fEl.value = '';
+    return;
+  }
+  var url = URL.createObjectURL(file);
+  var img = new Image();
+  img.onload = function () {
+    try {
+      var scale = Math.min(1, 1280 / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+      var cv = document.createElement('canvas');
+      cv.width = Math.max(1, Math.round((img.naturalWidth || 1) * scale));
+      cv.height = Math.max(1, Math.round((img.naturalHeight || 1) * scale));
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      // canvas の再エンコードで、画像でない中身や付属情報 (位置情報など) は落ちる
+      if (cv.toBlob) cv.toBlob(function (blob) { if (blob) reportBlobToB64(blob, pv); else reportReadRaw(file, pv); }, 'image/jpeg', 0.82);
+      else reportReadRaw(file, pv);
+    } catch (e) { URL.revokeObjectURL(url); reportReadRaw(file, pv); }
+  };
+  img.onerror = function () {
+    URL.revokeObjectURL(url);
+    if (pv) pv.innerHTML = '<span class="rep-err">画像を読み込めませんでした。</span>';
+  };
+  img.src = url;
 }
 function sendReport() {
   var catEl = $('rep-cat'), ta = $('rep-text'), msg = $('rep-msg'), btn = $('btn-rep-send');
@@ -7931,11 +8002,24 @@ function sendReport() {
   if (text.length > 2000) { msg.textContent = '2000文字以内で入力してください。'; return; }
   if (btn) btn.disabled = true;
   msg.textContent = '送信中…';
-  fetch(statsHttpBase() + '/report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cat: catEl ? catEl.value : '要望', text: text, ctx: reportCtx() }), keepalive: true })
+  var payload = { cat: catEl ? catEl.value : '要望', text: text, ctx: reportCtx() };
+  if (reportImage) payload.image = reportImage;
+  fetch(statsHttpBase() + '/report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), keepalive: true })
     .then(function (r) {
-      if (!r.ok) throw new Error('status ' + r.status);
+      if (!r.ok) {
+        if ((r.status === 400 || r.status === 413) && reportImage) {
+          // 画像の形式・サイズで弾かれた場合は、その旨を伝える (文章は残す)
+          msg.textContent = '画像を送れませんでした（形式かサイズの問題です）。画像を外すか、別の画像でお試しください。（入力した内容は消えていません）';
+          if (btn) btn.disabled = false;
+          return;
+        }
+        throw new Error('status ' + r.status);
+      }
       msg.textContent = '送信しました。ありがとうございます！';
       ta.value = '';
+      reportImage = null;
+      var pv = $('rep-preview'); if (pv) pv.innerHTML = '';
+      var fEl = $('rep-file'); if (fEl) fEl.value = '';
       if (btn) btn.disabled = false;
     })
     .catch(function () {
