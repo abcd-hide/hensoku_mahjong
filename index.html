@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-24-122]</title>
+<title>変則麻雀 [build 2026-11-25-123]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -246,7 +246,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-24-122</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-25-123</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -1338,6 +1338,10 @@ function engineSettings() {
     openRiichi: S.openRiichi, renho: S.renho, daisharin: S.daisharin, renkou: S.renkou,
     doubleYakuman: S.doubleYakuman, kazoeYakuman: S.kazoe, kiriage: S.kiriage, pinfuTsumo30: S.pinfu30 };
 }
+// 翻数が後から増減したときは点数と段位ラベル (満貫/倍満…) を必ずセットで更新する。
+// ラベルだけ古いまま残ると「8翻なのに満貫」のような表示になる (bd報告 2026-11-25、build123)。
+function refreshEvLabel(ev) { if (ev) ev.label = MJ.HAN_LABEL(ev.han, ev.yakumanCount || 0, engineSettings()); return ev; }
+function rescoreEv(ev, pi, isTsumo) { if (!ev) return ev; ev.score = MJ.scoreFromHanFu(ev.han, ev.fu, pi === G.dealer, isTsumo, engineSettings()); return refreshEvLabel(ev); }
 
 /* ---------- 効果音・ボイス ---------- */
 var AC = null;
@@ -1650,18 +1654,18 @@ function evalWin(p, winningTileType, opts) {
         }
       }
     }
-    r.score = MJ.scoreFromHanFu(r.han, r.fu, pi === G.dealer, isTsumo, engineSettings());
+    rescoreEv(r, pi, isTsumo);
   }
   if (isDoubtVariant() && r) {
     if (!r.yakumanCount && p.riichi && p.riichiStacks > 0) {
       r.yaku.push({ name: '重ねリーチ', han: p.riichiStacks });
       r.han += p.riichiStacks;
-      r.score = MJ.scoreFromHanFu(r.han, r.fu, pi === G.dealer, isTsumo, engineSettings());
+      rescoreEv(r, pi, isTsumo);
     }
     var usoBonus = doubtUsoBonusEv(doubtUsoCount(p), evalWild + revealedWilds, pi === G.dealer, isTsumo, S.doubtExtraWareme && G.doubtWareme === pi);
     if (usoBonus && usoBonus.score.total > r.score.total) {
       r.yaku = [{ name: usoBonus.name, han: usoBonus.han, yakuman: usoBonus.yakumanCount }];
-      r.han = usoBonus.han; r.yakumanCount = usoBonus.yakumanCount; r.score = usoBonus.score;
+      r.han = usoBonus.han; r.yakumanCount = usoBonus.yakumanCount; r.score = usoBonus.score; refreshEvLabel(r);
     }
   }
   if (S.variant === 'napoleon' && r && G.napoleon) {
@@ -1670,7 +1674,7 @@ function evalWin(p, winningTileType, opts) {
       if (trumpSets > 0) {
         r.yaku.push({ name: '切札', han: trumpSets });
         r.han += trumpSets;
-        r.score = MJ.scoreFromHanFu(r.han, r.fu, pi === G.dealer, isTsumo, engineSettings());
+        rescoreEv(r, pi, isTsumo);
       }
     }
     if (!r.yakumanCount && pi === G.napoleon.pi && G.napoleon.embedded) {
@@ -1682,7 +1686,7 @@ function evalWin(p, winningTileType, opts) {
       if (embCount > 0) {
         r.yaku.push({ name: '仕込み裏ドラ', han: embCount });
         r.han += embCount;
-        r.score = MJ.scoreFromHanFu(r.han, r.fu, pi === G.dealer, isTsumo, engineSettings());
+        rescoreEv(r, pi, isTsumo);
       }
     }
     if (pi === G.napoleon.pi && r.score.total < G.napoleon.bid) return null;
@@ -1692,18 +1696,18 @@ function evalWin(p, winningTileType, opts) {
     if (kuiCount > 0) {
       r.yaku.push({ name: '食い上がり', han: kuiCount });
       r.han += kuiCount;
-      r.score = MJ.scoreFromHanFu(r.han, r.fu, pi === G.dealer, isTsumo, engineSettings());
+      rescoreEv(r, pi, isTsumo);
     }
   }
   if (S.variant === 'chain' && r) {
     if (r.yakumanCount > 0 && r.yaku.some(function (y) { return y.name.indexOf('国士') >= 0; })) {
       r.yakumanCount = 0; r.han = 8;
-      r.score = MJ.scoreFromHanFu(8, r.fu, pi === G.dealer, isTsumo, engineSettings());
+      rescoreEv(r, pi, isTsumo);
     } else if (!r.yakumanCount) {
       var honEntry = r.yaku.find(function (y) { return y.name === '混一色' || y.name === '清一色'; });
       if (honEntry && honEntry.han > 0) {
         honEntry.han -= 1; r.han -= 1;
-        r.score = MJ.scoreFromHanFu(r.han, r.fu, pi === G.dealer, isTsumo, engineSettings());
+        rescoreEv(r, pi, isTsumo);
       }
     }
   }
@@ -1711,7 +1715,7 @@ function evalWin(p, winningTileType, opts) {
     var pinBonusG = groupPinBonus(p, winningTileType, isTsumo);
     if (pinBonusG > 0) {
       r.han += pinBonusG;
-      r.score = MJ.scoreFromHanFu(r.han, r.fu, pi === G.dealer, isTsumo, engineSettings());
+      rescoreEv(r, pi, isTsumo);
       r.yaku = r.yaku.concat([{ name: 'マル（筒子のメンゼンメンツ）', han: pinBonusG, yakuman: 0 }]);
     }
   }
@@ -1722,7 +1726,7 @@ function evalWin(p, winningTileType, opts) {
     if (adj51 !== 0) {
       r.han += adj51;
       if (r.han < 1) return null;
-      r.score = MJ.scoreFromHanFu(r.han, r.fu, pi === G.dealer, isTsumo, engineSettings());
+      rescoreEv(r, pi, isTsumo);
       r.yaku = r.yaku.concat([{ name: '51補正（' + (adj51 > 0 ? '+' : '') + adj51 + '翻）', han: adj51, yakuman: 0 }]);
     }
   }
@@ -3475,16 +3479,16 @@ function doubtUsoBonusEv(uso, wildTotal, isDealer, isTsumo, wareme) {
   if (uso >= 5) {
     var s1 = MJ.scoreFromHanFu(13, 40, isDealer, isTsumo, st);
     var dbl = { total: (s1.total || 0) * 2, all: (s1.all || 0) * 2, dealerPay: (s1.dealerPay || 0) * 2, childPay: (s1.childPay || 0) * 2, ron: (s1.ron !== undefined && s1.ron !== null ? s1.ron : s1.total || 0) * 2, label: 'ダブル役満' };
-    return { name: '5ウーソー（ダブル役満）', han: 26, yakumanCount: 2, score: dbl };
+    return { name: '5ウーソー（ダブル役満）', han: 26, yakumanCount: 2, score: dbl, label: 'ダブル役満' };
   }
   if (uso === 4) {
     var han10 = 10 - wildTotal;
-    if (han10 >= 10) return { name: '4ウーソー（役満）', han: 10, yakumanCount: 1, score: MJ.scoreFromHanFu(13, 40, isDealer, isTsumo, st) };
-    return { name: '4ウーソー', han: han10, yakumanCount: 0, score: MJ.scoreFromHanFu(Math.max(han10, 1), 40, isDealer, isTsumo, st) };
+    if (han10 >= 10) return { name: '4ウーソー（役満）', han: 10, yakumanCount: 1, score: MJ.scoreFromHanFu(13, 40, isDealer, isTsumo, st), label: '役満' };
+    return { name: '4ウーソー', han: han10, yakumanCount: 0, score: MJ.scoreFromHanFu(Math.max(han10, 1), 40, isDealer, isTsumo, st), label: MJ.HAN_LABEL(han10, 0, st) };
   }
   // 追加ルール: 勝者が割れ目のとき 3ウーソーは満貫でなく倍満になる (原典の追加ルール)
-  if (wareme) return { name: '3ウーソー（倍満・割れ目）', han: 8, yakumanCount: 0, score: MJ.scoreFromHanFu(8, 40, isDealer, isTsumo, st) };
-  return { name: '3ウーソー（満貫）', han: 5, yakumanCount: 0, score: MJ.scoreFromHanFu(5, 40, isDealer, isTsumo, st) };
+  if (wareme) return { name: '3ウーソー（倍満・割れ目）', han: 8, yakumanCount: 0, score: MJ.scoreFromHanFu(8, 40, isDealer, isTsumo, st), label: '倍満' };
+  return { name: '3ウーソー（満貫）', han: 5, yakumanCount: 0, score: MJ.scoreFromHanFu(5, 40, isDealer, isTsumo, st), label: '満貫' };
 }
 function doubtPlusOneDora(ev, pi, isTsumo, kind) {
   if (ev.yakumanCount > 0) return ev;
@@ -3492,7 +3496,7 @@ function doubtPlusOneDora(ev, pi, isTsumo, kind) {
   // 相手にダウトされた本物ロンなら「ダウト」、嘘ロンの精算なら「嘘ロン」
   ev.yaku.push({ name: kind === 'fake' ? '嘘ロン（ドラ+1）' : 'ダウト（ドラ+1）', han: 1 });
   ev.han += 1;
-  ev.score = MJ.scoreFromHanFu(ev.han, ev.fu, pi === G.dealer, isTsumo, engineSettings());
+  rescoreEv(ev, pi, isTsumo);
   return ev;
 }
 /* ---------- ダウト (鳴きへの疑い) ---------- */
@@ -3513,10 +3517,16 @@ function doubtMeldLabel(meld) {
   if (meld.claimKind === 'chi' || meld.kind === 'seq') return base + 'のチー';
   return base + 'のポン';
 }
-async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
+function doubtMeldAmount(doubterPi, ownerPi, immediate) {
+  // ダウトのやり取り額: 即ダウト2000 / 通常1000。追加ルール (割れ目) で
+  // 所有者かダウト者のどちらかが割れ目なら2倍。表示も必ずこの額で出す
+  // (ボタン文言に2000を直書きすると割れ目時に表示だけずれる。bd報告 2026-11-25、build123)
   var amount = immediate ? 2000 : 1000;
-  // 追加ルール (割れ目): 所有者かダウト者のどちらかが割れ目なら金額は2倍
   if (S.doubtExtraWareme && G.doubtWareme >= 0 && (G.doubtWareme === ownerPi || G.doubtWareme === doubterPi)) amount *= 2;
+  return amount;
+}
+async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
+  var amount = doubtMeldAmount(doubterPi, ownerPi, immediate);
   var doubter = G.players[doubterPi], owner = G.players[ownerPi];
   if (meld.kakanHidden) {
     // 公開済みポンへの加槓に対するダウト: 判定は加えた1枚だけ。ポン自体は公開済みなので、
@@ -3734,14 +3744,15 @@ async function doubtImmediateWindow(ownerPi, meld) {
     var wants = false;
     if (q.isHuman) {
       renderAll();
+      var immAmt = doubtMeldAmount(qi, ownerPi, true);
       if (NET.mode === 'host' && qi !== 0) {
         // リモート席の即ダウト窓はボタン・プロンプトとして転送する
-        wants = await netPromptButtons(qi, [{ label: 'ダウト！（' + G.players[ownerPi].name + 'の' + doubtMeldLabel(meld) + ': 嘘なら2000点もらえる）', value: true }, { label: '見送る', value: false, cls: 'sub' }]);
+        wants = await netPromptButtons(qi, [{ label: 'ダウト！（' + G.players[ownerPi].name + 'の' + doubtMeldLabel(meld) + ': 嘘なら' + immAmt + '点もらえる）', value: true }, { label: '見送る', value: false, cls: 'sub' }]);
       } else {
         wants = await new Promise(function (resolve) {
           var done = function (v) { if (G.immediateDoubt && G.immediateDoubt.meld === meld) G.immediateDoubt = null; resolve(v); };
           G.immediateDoubt = { meld: meld, qi: qi, resolve: done };
-          G.pending = { buttons: [{ label: 'ダウト！（' + G.players[ownerPi].name + 'の' + doubtMeldLabel(meld) + ': 嘘なら2000点もらえる）', value: true }, { label: '見送る', value: false, cls: 'sub' }], resolve: function (v) { done(!!v); } };
+          G.pending = { buttons: [{ label: 'ダウト！（' + G.players[ownerPi].name + 'の' + doubtMeldLabel(meld) + ': 嘘なら' + immAmt + '点もらえる）', value: true }, { label: '見送る', value: false, cls: 'sub' }], resolve: function (v) { done(!!v); } };
           renderActions();
         });
       }
@@ -4111,7 +4122,7 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
     var bonus = doubtUsoBonusEv(doubtUsoCount(q) + 1, doubtWildTotal(q), qi === G.dealer, false, S.doubtExtraWareme && G.doubtWareme === qi);
     var evF = doubtPlusOneDora(fakeEv, qi, false, 'fake');
     if (bonus && bonus.score.total > evF.score.total) {
-      evF = { yaku: [{ name: bonus.name, han: bonus.han, yakuman: bonus.yakumanCount }], han: bonus.han, fu: 40, yakumanCount: bonus.yakumanCount, score: bonus.score };
+      evF = { yaku: [{ name: bonus.name, han: bonus.han, yakuman: bonus.yakumanCount }], han: bonus.han, fu: 40, yakumanCount: bonus.yakumanCount, score: bonus.score, label: MJ.HAN_LABEL(bonus.han, bonus.yakumanCount, engineSettings()) };
     }
     if (doubtIt && S.doubtExtraRon) {
       // 追加ルール: 嘘ロンでも上がり自体は通常精算し、ダウトの成否は別判定で処理する
@@ -4126,6 +4137,7 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
       log(q.name + ' のロンは嘘だった！ ' + discarder.name + ' が ' + evF.score.total + ' 点を逆にもらって、この局は終了');
       renderAll();
       var waitsF = playerWaits(q);
+      var labelF = MJ.HAN_LABEL(evF.han, evF.yakumanCount || 0, engineSettings());
       var htmlF = '<h3>' + q.name + ' の嘘ロン！（' + discarder.name + ' のダウト成功）</h3>' +
         '<div class="win-ron-banner">' + q.name + ' のロン宣言は嘘でした ― ' + discarder.name + ' の ' + MJ.TILE_NAMES[tile.t] + '</div>' +
         '<div class="win-hand">' + handTilesHTML(q) + '</div>' +
@@ -4135,8 +4147,8 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
         '<table class="yaku-table">' + evF.yaku.map(function (y) {
           return '<tr><td>' + y.name + '</td><td class="yhan">' + (y.yakuman ? '役満' : y.han + '翻') + '</td></tr>';
         }).join('') + '</table>' +
-        '<p class="win-total"><b>' + (evF.yakumanCount ? (evF.label || MJ.HAN_LABEL(evF.han, evF.yakumanCount, {})) + ' ' + evF.score.total + '点'
-          : evF.han + '翻 ' + evF.fu + '符' + (evF.label ? ' ' + evF.label : '') + ' ' + evF.score.total + '点') + '</b>' +
+        '<p class="win-total"><b>' + (evF.yakumanCount ? labelF + ' ' + evF.score.total + '点'
+          : evF.han + '翻 ' + evF.fu + '符' + (labelF ? ' ' + labelF : '') + ' ' + evF.score.total + '点') + '</b>' +
           (evF.wildPenaltyApplied ? '（オールマイティ ' + evF.wildPenaltyApplied + '枚で -' + evF.wildPenaltyApplied + '翻済み）' : '') + '</p>' +
         '<p>' + q.name + ' が ' + discarder.name + ' に ' + evF.score.total + '点を支払いました（嘘ロンの逆払い）</p>' +
         '<p>この局はこれで終了します</p>';
@@ -4164,7 +4176,7 @@ async function doubtSettleRon(qi, pi, tile, trueEv, fakeEv, doubtIt, houtei) {
       var bonus2 = doubtUsoBonusEv(doubtUsoCount(q) + 1, doubtWildTotal(q), qi === G.dealer, false, S.doubtExtraWareme && G.doubtWareme === qi);
       var evF2 = doubtPlusOneDora(fakeEv, qi, false, 'fake');
       if (bonus2 && bonus2.score.total > evF2.score.total) {
-        evF2 = { yaku: [{ name: bonus2.name, han: bonus2.han, yakuman: bonus2.yakumanCount }], han: bonus2.han, fu: 40, yakumanCount: bonus2.yakumanCount, score: bonus2.score };
+        evF2 = { yaku: [{ name: bonus2.name, han: bonus2.han, yakuman: bonus2.yakumanCount }], han: bonus2.han, fu: 40, yakumanCount: bonus2.yakumanCount, score: bonus2.score, label: MJ.HAN_LABEL(bonus2.han, bonus2.yakumanCount, engineSettings()) };
       }
       await finishWith(evF2, '嘘ロンとして精算（見破られなかった）');
     }
@@ -4232,9 +4244,10 @@ async function doubtRonPhase(pi, tile, houtei) {
       renderAll();
       var shownEvD = trueEv || fakeEv;
       NET.promptSeat = pi;
+      var ronJudgeAmt = (G.doubtWareme >= 0 && (G.doubtWareme === qi || G.doubtWareme === pi)) ? 4000 : 2000;
       var ansD = await modalChoice('<h3>' + q.name + ' がロンと宣言しました！</h3>' +
         '<p>あなたの捨て牌 ' + MJ.TILE_NAMES[tile.t] + ' に対するロンです（' + hanText(shownEvD) + ' ' + shownEvD.fu + '符）。<br>嘘だと思いますか？</p>',
-        [{ label: S.doubtExtraRon ? 'ダウトする！（別判定で2000点固定の移動）' : 'ダウトする！（嘘なら点数を逆にもらえる）', value: true }, { label: 'ダウトしない（通常の支払い）', value: false, cls: 'sub' }]);
+        [{ label: S.doubtExtraRon ? 'ダウトする！（別判定で' + ronJudgeAmt + '点固定の移動）' : 'ダウトする！（嘘なら点数を逆にもらえる）', value: true }, { label: 'ダウトしない（通常の支払い）', value: false, cls: 'sub' }]);
       doubtIt = ansD === true;
     } else {
       doubtIt = Math.random() < Math.min(0.6, 0.25 + q.melds.filter(function (m) { return m.hidden || m.kakanHidden; }).length * 0.1);
@@ -5377,6 +5390,7 @@ function chainRescore(ev, newHan, pi, isTsumo) {
   ev.han = newHan;
   ev.yakumanCount = newHan >= 13 ? 1 : 0;
   ev.score = MJ.scoreFromHanFu(newHan, ev.fu, pi === G.dealer, isTsumo, engineSettings());
+  refreshEvLabel(ev);
   return ev;
 }
 async function chainSwapWithPartner(pi, giveTile) {
@@ -5753,6 +5767,7 @@ function evalUno(p, tileType, isTsumo) {
       if (ev.han <= 0) return null;
       ev.score = MJ.scoreFromHanFu(ev.han, ev.fu, pi === G.dealer, isTsumo, engineSettings());
     }
+    refreshEvLabel(ev);
     ev.yaku = ev.yaku.concat([{ name: '手牌数ペナルティ', han: -need, yakuman: 0 }]);
   }
   return ev;
@@ -5825,10 +5840,10 @@ async function unoResolveRons(discarderPi, tiles) {
 function unoWinEval(pi) {
   var p = G.players[pi];
   if (p.unoDeclared) {
-    return { yaku: [{ name: 'UNO上がり（宣言あり）', han: 5, yakuman: 0 }], han: 5, fu: 30, yakumanCount: 0,
+    return { yaku: [{ name: 'UNO上がり（宣言あり）', han: 5, yakuman: 0 }], han: 5, fu: 30, yakumanCount: 0, label: '満貫',
       score: MJ.scoreFromHanFu(5, 30, pi === G.dealer, true, engineSettings()) };
   }
-  return { yaku: [{ name: 'UNO上がり', han: 0, yakuman: 0 }], han: 0, fu: 0, yakumanCount: 0,
+  return { yaku: [{ name: 'UNO上がり', han: 0, yakuman: 0 }], han: 0, fu: 0, yakumanCount: 0, label: '',
     score: { total: 3900, all: 1300, dealerPay: 1300, childPay: 1300, ron: 3900, label: '3900' } };
 }
 async function unoChooseSuit(pi) {
@@ -6829,7 +6844,7 @@ async function settleSashi(pi) {
       '<div>' + g.tiles.map(function (t) { return tileHTML(t, { small: true }); }).join('') +
       w.melds.map(function (m) { return ' <span class="meld">' + meldTilesHTML(m, true, false, G.players.indexOf(w)) + '</span>'; }).join('') + '</div>' +
       '<table class="yaku-table">' + g.ev.yaku.map(function (y) { return '<tr><td>' + y.name + '</td><td class="yhan">' + (y.yakuman ? '役満' : y.han + '翻') + '</td></tr>'; }).join('') + '</table>' +
-      '<p><b>' + (g.ev.yakumanCount ? g.ev.label + ' ' + g.ev.score.total + '点' : hanText(g.ev) + ' ' + g.ev.fu + '符 ' + g.ev.score.total + '点') + '</b> → ' + loser.name + ' から ' + pay + '点</p></div>';
+      '<p><b>' + (g.ev.yakumanCount ? MJ.HAN_LABEL(g.ev.han, g.ev.yakumanCount, engineSettings()) + ' ' + g.ev.score.total + '点' : hanText(g.ev) + ' ' + g.ev.fu + '符 ' + g.ev.score.total + '点') + '</b> → ' + loser.name + ' から ' + pay + '点</p></div>';
   });
   if (G.kyotaku) { w.score += G.kyotaku * 1000; html += '<p>供託 ' + (G.kyotaku * 1000) + '点を受け取った</p>'; G.kyotaku = 0; }
   html += '<p><b>合計 ' + totalGet + '点</b></p>';
@@ -7313,8 +7328,9 @@ function winDetailHTML(p, ev, title, winInfo, dispTotal) {
     return '<tr><td>' + y.name + '</td><td class="yhan">' + (y.yakuman ? '役満' : y.han + '翻') + '</td></tr>';
   }).join('') + '</table>';
   var totalDisp = (dispTotal != null ? dispTotal : ev.score.total);
-  html += '<p class="win-total"><b>' + (ev.yakumanCount ? (ev.label || MJ.HAN_LABEL(ev.han, ev.yakumanCount, {})) + ' ' + totalDisp + '点'
-    : ev.han + '翻 ' + ev.fu + '符' + (ev.label ? ' ' + ev.label : '') + ' ' + totalDisp + '点') + '</b>' +
+  var dispLabel = MJ.HAN_LABEL(ev.han, ev.yakumanCount || 0, engineSettings());
+  html += '<p class="win-total"><b>' + (ev.yakumanCount ? dispLabel + ' ' + totalDisp + '点'
+    : ev.han + '翻 ' + ev.fu + '符' + (dispLabel ? ' ' + dispLabel : '') + ' ' + totalDisp + '点') + '</b>' +
     (ev.wildPenaltyApplied ? '（オールマイティ ' + ev.wildPenaltyApplied + '枚で -' + ev.wildPenaltyApplied + '翻済み）' : '') + '</p>';
   return html;
 }
