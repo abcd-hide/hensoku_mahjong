@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-25-126]</title>
+<title>変則麻雀 [build 2026-11-25-127]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -248,7 +248,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-25-126</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-25-127</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -342,12 +342,13 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
           <option value="5-10">5-10</option>
           <option value="0-0">なし</option>
         </select></label>
-      <label>ダウト系: オールマイティ
+      <label>オールマイティの枚数
         <select id="set-doubtwilds">
           <option value="4">4枚</option>
+          <option value="6">6枚</option>
           <option value="8">8枚</option>
         </select></label>
-      <label>ダウト系: 万能牌の種類
+      <label>万能牌の種類
         <select id="set-doubtwildkind">
           <option value="five">5</option>
           <option value="flower">春夏秋冬</option>
@@ -1318,8 +1319,8 @@ var DEFAULT_SETTINGS = {
   openRiichi: true, renho: 'off', daisharin: true, renkou: true, sound: true, voice: true, voiceGender: 'auto',
   noCall: false, // 鳴きなしフラグ: ONの間、他家の捨て牌への鳴きは自動でパスする
   noDoubtClaim: false, // ダウト主張なしフラグ: ONの間、ダウトの主張は自動でパスする (鳴きなしとは別ボタン)
-  doubtWilds: 4, // ダウト系のオールマイティ枚数 (4 or 8)
-  doubtWildKind: 'five', roleplayAbilities: 1, // ダウト系の万能牌の種類: 'five' = 5, 'flower' = 春夏秋冬
+  doubtWilds: 4, // オールマイティ枚数 (4/6/8。通常オールマイティとダウト系で共用、build127)
+  doubtWildKind: 'five', roleplayAbilities: 1, // 万能牌の種類 (共用): 'five' = 5, 'flower' = 春夏秋冬
   chainMode: 'current', // チェインの方式: 'current' 現行 / 'revised' 改正案(2003) / 'improved' 改善案(2024)
   doubtExtraRon: false, // ダウト追加ルール「ダウトロン固定2000点」: ダウトされたロンは通常精算+別判定2000点固定 (bd指示 2026-11-24: 個別チェックボックス)
   doubtExtraWareme: false // ダウト追加ルール「ダウト割れ目」: 毎局1人選ばれ、当事者のダウト関連金額が全て2倍
@@ -1441,15 +1442,16 @@ function buildWall() {
     if (isSanma() && t >= 1 && t <= 7) continue; // サンマ: 萬子の2〜8は入れない
     var isFive = (t === 4 || t === 13 || t === 22);
     var red = S.aka && isFive && k === 0;
-    var wild = S.variant === 'allmighty' && isFive && k === 0; // 赤5をオールマイティに (赤オフでも金色の5が1枚ずつ入る)
-    if (isDoubtVariant() && isFive) {
-      // ダウト系: オールマイティは設定枚数 (4 or 8)。5をコピー順に均等に割り当てる
+    var wild = false;
+    if ((S.variant === 'allmighty' || isDoubtVariant()) && isFive) {
+      // オールマイティは設定枚数 (4/6/8) を通常オールマイティとダウト系で共用 (build127、bd指示)。
+      // 従来の通常オールマイティは各色の5が1枚ずつ (計3枚) 固定だった。5をコピー順に均等に割り当てる
       var suitIx = (t === 4) ? 0 : (t === 13) ? 1 : 2;
       wild = (k * 3 + suitIx) < Number(S.doubtWilds || 4);
     }
     if ((S.variant === 'allmighty' || isDoubtVariant()) && isFive && k === 0) red = S.aka;
-    if (isDoubtVariant() && wild && S.doubtWildKind === 'flower') {
-      // 万能枠を春夏秋冬の花牌に差し替える (4枚=各1枚, 8枚=各2枚)
+    if ((S.variant === 'allmighty' || isDoubtVariant()) && wild && S.doubtWildKind === 'flower') {
+      // 万能枠を春夏秋冬の花牌に差し替える (4枚=各1枚, 6枚=各1〜2枚, 8枚=各2枚)
       var ft = mkTile(-1, false, true);
       ft.flower = flowerSeq % 4; flowerSeq++;
       wall.push(ft);
@@ -9160,7 +9162,7 @@ var RULE_PAGES = [
   "summary": "赤5が万能牌。持っているだけで1枚につき-1翻",
   "body": "<p>予備牌が有る雀牌では白８枚、それ以外では花牌と赤５の牌をオールマイティとする。{{note:tiles}}<br>但し、オールマイティを捨てたときはそれぞれの元の牌として扱い（花牌は白）、\nオールマイティとしては扱わない。<br>ここからの説明では赤牌をオールマイティとして扱う。\n({{tile:13:red}}{{tile:22:red}}{{tile:4:red}})\n</p><p><br>オールマイティを手牌に含んでいると１つにつきマイナス１翻になる。<br>このとき、持っている人が不利になるように役が減っていく。{{note:eval}}<br>例えばメンタンピンツモドラ１のときに２つオールマイティを持っていたら、\nピンヅモドラ１になる。<br><div class=\"rule-tiles\">{{tile:10}}{{tile:11}}{{tile:12}}\n{{tile:13}}{{tile:14}}{{tile:15}}\n{{tile:20}}{{tile:20}}{{tile:20}}\n{{tile:21}}{{tile:22}}{{tile:24}}\n{{tile:13:red}}&nbsp&nbsp{{tile:13:red}}(リーチツモ)\n&nbsp&nbsp&nbsp&nbsp{{tile:11}}（ドラ）{{tile:33}}(裏ドラ)\n</div><br>この例では待ちは{{tile:19}}{{tile:20}}\n{{tile:21}}{{tile:22}}{{tile:23}}\n{{tile:24}}{{tile:25}}{{tile:26}}\nであるが、最も高めである{{tile:23}}などをツモったとしてよい。\n</p><p>ただし、フリテンには要注意である。\nオールマイティを使用しているときにあがれる全ての可能性を考えなければならない。<br>あがれるものを１つでも以前に捨てていれば勿論フリテンである。<br>つまり、上の例では１以外の索子を一つでも捨てている場合にはフリテンとみなされる。</p><p><br>また、オールマイティにより役が減り、１翻しばりでは上がれない状態の場合は\nあがることができない。</p>{{note:yakuman}}<br><div class=\"rule-tiles\">{{tile:9}}{{tile:9}}{{tile:9}}\n{{tile:11}}{{tile:12}}{{tile:13}}\n{{tile:20}}{{tile:20}}{{tile:20}}\n{{tile:21}}{{tile:22}}{{tile:24}}\n{{tile:13:red}}&nbsp&nbsp{{tile:13:red}}(リーチツモ)\n&nbsp&nbsp&nbsp&nbsp{{tile:11}}（ドラ）{{tile:33}}(裏ドラ)\n</div><br>この例ではリーチツモドラ１であるが、オールマイティが２枚あるのでリーチツモが消え、<br>ドラ１のみになってしまうため、あがれない。<p>オールマイティのルールを使っているときは\n何でもあがれる状態に成り得るがその状態からの和了は反則となる。</p><div class=\"rule-tiles\">{{tile:9}}{{tile:9}}{{tile:9}}\n{{tile:11}}{{tile:12}}{{tile:13}}\n{{tile:20}}{{tile:20}}{{tile:20}}\n{{tile:21}}{{tile:22}}{{tile:23}}\n{{tile:13:red}}&nbsp&nbsp{{tile:27}}(リーチツモ)\n&nbsp&nbsp&nbsp&nbsp{{tile:11}}（ドラ）{{tile:33}}(裏ドラ)\n</div><br>この例ではオールマイティ以外の牌で形が出来上がっていて、<br>オールマイティ単騎の状態になっているため、どの牌でも上がれる状態であるため、\nこの形でのあがりは反則となる。<br><br>",
   "notes": {
-   "tiles": "アプリでは各色の5が1枚ずつ（計3枚）のみがオールマイティです。",
+   "tiles": "アプリでは、オールマイティの枚数と種類は設定で決まります（枚数4/6/8枚、種類は5または春夏秋冬。通常オールマイティとダウト系で共通の設定です）。",
    "eval": "アプリでは、ペナルティ（1枚につき-1翻）を引いた後も上がれる置換の中で、最も点数が高くなる評価を採用します（「持っている人が不利になるように役が減る」という原典の扱いとは異なります）。",
    "yakuman": "アプリでは役満も13翻扱いとしてペナルティの対象になります（ワイルド1枚で上がった役満は12翻＝三倍満として計算します）。"
   }
