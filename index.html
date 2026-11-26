@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-27-133]</title>
+<title>変則麻雀 [build 2026-11-27-134]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -247,12 +247,16 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 .rule-xlink { color: #14532d; font-weight: bold; }
 .rules-src { font-size: 12px; color: #777; border-top: 1px solid #ccc; padding-top: 8px; }
 
+/* 持ち時間のカウントダウン (build134) */
+#net-timer { text-align: center; font-weight: bold; font-size: 15px; color: #b3541e; padding: 2px 0 0; }
+#net-timer.urgent { color: #c0392b; }
+
 </style>
 </head>
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-27-133</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-27-134</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -429,6 +433,21 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
     <span id="net-lobby-status" class="note">未接続</span>
     <h3>卓一覧</h3>
     <div id="net-tables"><p class="note">未接続</p></div>
+    <label>持ち時間（1手ごと）
+      <select id="net-timelimit">
+        <option value="0">なし</option>
+        <option value="20">ゆっくり（20秒）</option>
+        <option value="10">ふつう（10秒）</option>
+        <option value="5">はやい（5秒）</option>
+      </select></label>
+    <label>CPUの待ち時間
+      <select id="net-cpuwait">
+        <option value="0">なし</option>
+        <option value="0.5">短い（半分）</option>
+        <option value="1">現在</option>
+        <option value="2">長い（2倍）</option>
+      </select></label>
+    <p class="note">持ち時間とCPUの待ち時間は、卓を作った人の設定が対戦開始時に全員へ共有されます。ダウト系の「鳴き」判断だけ、はやいでも最低10秒あります（牌を選ぶところまで含めて1回の判断です。途中でやめても時間は戻りません）。時間切れのときは、打牌はツモ切り、鳴きやダウトの宣言は見送り、ダウトされた牌は公開されます。</p>
     <p><button id="net-create">卓を作る（現在の設定で）</button></p>
     <h3>ロビーチャット</h3>
     <div id="net-lobby-chat" class="net-chat"></div>
@@ -457,6 +476,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
     <div id="seats"></div>
   </div>
   <div id="action-bar"></div>
+  <div id="net-timer" class="hidden"></div>
  </div>
   <div id="side-col"><button id="btn-log-toggle" class="sub">📋 ログを表示</button><div id="narabe-panel" class="hidden"></div><div id="log"></div><div id="net-match-chat" class="hidden"><button id="net-match-chat-toggle" class="sub">💬 卓チャット</button><div id="net-match-chat-body" class="hidden"><div id="net-match-chat-log" class="net-chat"></div><div class="net-match-chat-row"><input type="text" id="net-match-chat-input" maxlength="200" placeholder="チャット"><button id="net-match-chat-send">送信</button></div></div></div></div>
 </main>
@@ -1336,6 +1356,8 @@ var DEFAULT_SETTINGS = {
   noDoubtClaim: false, // ダウト主張なしフラグ: ONの間、ダウトの主張は自動でパスする (鳴きなしとは別ボタン)
   doubtWilds: 4, // オールマイティ枚数 (4/6/8。通常オールマイティとダウト系で共用、build127)
   cpuWait: 1, // CPU戦の待ち時間倍率 (0=なし, 0.5=半分, 1=現在, 2=2倍。build133)
+  netTimeLimit: 0, // ネット対戦の持ち時間 (1手ごとの秒数。0=なし/20/10/5。卓設定、build134)
+  netCpuWait: 1, // ネット対戦で CPU が入る席の待ち時間倍率 (卓設定。0/0.5/1/2。build134)
   doubtWildKind: 'five', roleplayAbilities: 1, // 万能牌の種類 (共用): 'five' = 5, 'flower' = 春夏秋冬
   chainMode: 'current', // チェインの方式: 'current' 現行 / 'revised' 改正案(2003) / 'improved' 改善案(2024)
   doubtExtraRon: false, // ダウト追加ルール「ダウトロン固定2000点」: ダウトされたロンは通常精算+別判定2000点固定 (bd指示 2026-11-24: 個別チェックボックス)
@@ -2102,25 +2124,35 @@ function toggleBoardView() {
 }
 function modalChoice(html, buttons) {
   // ネット対戦: 対象席がリモートならモーダルをプロンプトとしてゲストへ転送する
+  var timedLocal = false;
   if (typeof NET !== 'undefined' && NET && NET.mode === 'host' && NET.promptSeat != null) {
     var nseat2 = NET.promptSeat; NET.promptSeat = null;
     if (nseat2 !== 0) return netPromptModal(nseat2, html, buttons);
+    timedLocal = !NET.resultWait; // 席0 (ホスト本人) の判断モーダルは持ち時間の対象にする
   }
   showModal('<div id="modal-result">' + html + '</div><div class="modal-btns"><button id="btn-board-view" class="sub" data-back="判断に戻る">場を見る</button>' + buttons.map(function (b, i) { return '<button data-mi="' + i + '"' + (b.cls ? ' class="' + b.cls + '"' : '') + '>' + b.label + '</button>'; }).join('') + '</div>');
   $('btn-board-view').addEventListener('click', toggleBoardView);
   return new Promise(function (resolve) {
+    var wrapped = function (v) { if (G.modalTimerResolve === wrapped) { G.modalTimerResolve = null; G.modalTimerButtons = null; } hideModal(); resolve(v); };
+    if (timedLocal && typeof G !== 'undefined' && G) { G.modalTimerResolve = wrapped; G.modalTimerButtons = buttons; }
     Array.prototype.forEach.call($('modal-box').querySelectorAll('button[data-mi]'), function (el) {
-      el.addEventListener('click', function () { hideModal(); resolve(buttons[Number(el.getAttribute('data-mi'))].value); });
+      el.addEventListener('click', function () { wrapped(buttons[Number(el.getAttribute('data-mi'))].value); });
     });
   });
 }
-function sleep(ms) {
-  // CPU戦の待ち時間設定 (build133): 100ms 以上のペース用 sleep に倍率をかける。
-  // 60ms 級のポーリングは対象外。ネット対戦中は適用しない (持ち時間は別機能)。
-  if (ms >= 100 && typeof S !== 'undefined' && S.cpuWait != null && Number(S.cpuWait) !== 1 &&
-      (typeof NET === 'undefined' || !NET || !NET.mode || NET.mode === 'off')) {
-    ms = Math.round(ms * Number(S.cpuWait));
+function paceFactor() {
+  // 待ち時間の倍率 (build133/134): ローカルCPU戦は S.cpuWait、ネット対戦はホストの
+  // 卓設定 S.netCpuWait (対局はホストのブラウザが回すため)。ゲスト側の待機は
+  // 表示用なので倍率をかけない。
+  if (typeof NET !== 'undefined' && NET) {
+    if (NET.mode === 'host') return Number(S.netCpuWait != null ? S.netCpuWait : 1);
+    if (NET.mode === 'guest') return 1;
   }
+  return Number(S.cpuWait != null ? S.cpuWait : 1);
+}
+function sleep(ms) {
+  // 100ms 以上のペース用 sleep に倍率をかける。60ms 級のポーリングは対象外。
+  if (ms >= 100 && typeof S !== 'undefined') { var f = paceFactor(); if (f !== 1) ms = Math.round(ms * f); }
   return new Promise(function (r) { setTimeout(r, ms); });
 }
 
@@ -3574,7 +3606,7 @@ async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
         '<p>ダウトされた加槓: <b>' + doubtMeldLabel(meld) + '</b></p>' +
         '<p>' + meldTilesHTML(meld, true, true, ownerPi) + '</p>' +
         '<p>この加槓は本当です。公開すれば ' + amount + '点もらえます。<br>代わりに、' + amount + '点を支払って加槓を取り消すこともできます（加えた牌は' + (immediate ? '手に戻ります' : '河に捨てられます') + '）。</p>',
-        [{ label: '本当だと公開する（' + amount + '点もらう）', value: 'open' },
+        [{ label: '本当だと公開する（' + amount + '点もらう）', value: 'open', tdef: true },
          { label: amount + '点払って加槓を取り消す', value: 'fake', cls: 'sub' }]);
       kActAsLie = kAns === 'fake';
     }
@@ -3613,7 +3645,7 @@ async function doubtResolveMeldBody(doubterPi, ownerPi, meld, immediate) {
       '<p>ダウトされた鳴き: <b>' + doubtMeldLabel(meld) + '</b></p>' +
       '<p>' + meldTilesHTML(meld, true, true, ownerPi) + '</p>' +
       '<p>この鳴きは本当です。公開すれば ' + amount + '点もらえます。<br>代わりに、' + amount + '点を支払って鳴きを取り消し、牌を手に戻すこともできます。</p>',
-      [{ label: '本当だと公開する（' + amount + '点もらう）', value: 'open' },
+      [{ label: '本当だと公開する（' + amount + '点もらう）', value: 'open', tdef: true },
        { label: amount + '点払って鳴きを取り消す（手に戻す）', value: 'fake', cls: 'sub' }]);
     actAsLie = ans === 'fake';
   }
@@ -4031,9 +4063,11 @@ async function doubtOverrideRounds(pi, tile, cur) {
         btns.push({ label: 'パス', value: 'pass', cls: 'sub' });
         log(G.players[cur.pi].name + ' の' + kindName[cur.kind] + ' に被せることができます（より強い鳴きだけ可能）');
         renderAll();
+        netCallBudgetStart(cqi);
         NET.promptSeat = cqi;
         var ans = await waitHuman(btns);
         if (ans === 'kan' || ans === 'pon') choice = ans;
+        else netCallBudgetEnd(cqi);
       } else {
         if (S.variant === 'gdoubt' && cqi === (cur.pi + 2) % NP()) continue; // CPUはパートナーの鳴きに被せない
         if (canKan && cq.hand.length >= 3 && doubtCpuCallDecision(cq, tile, 'kan')) choice = 'kan';
@@ -4042,12 +4076,13 @@ async function doubtOverrideRounds(pi, tile, cur) {
       if (!choice) continue;
       // 先に被せ側の実牌を選ばせる。途中でやめたら元の鳴きはそのまま残る (bd報告 2026-11-16)
       var actual = await doubtPickClaimTiles(cqi, tile, choice, null);
-      if (!actual) continue;
+      if (!actual) { netCallBudgetEnd(cqi); continue; }
       if (!G.players[cur.pi].melds.includes(cur.meld)) return cur; // 牌選びの間にダウトで取り消されていた
       var oldName = G.players[cur.pi].name, oldKind = cur.kind;
       doubtDismantleMeld(cur.pi, cur.meld);
       log(cq.name + ' が ' + oldName + ' の' + kindName[oldKind] + ' に被せて ' + kindName[choice] + '！');
       var out = await doubtExecuteClaim(cqi, pi, tile, choice, null, { defer: true, actual: actual });
+      netCallBudgetEnd(cqi);
       if (!out) return cur; // 実牌確定済みなので通常は来ない
       cur = { pi: out.player, kind: choice, meld: out.meld };
       replaced = true;
@@ -4064,6 +4099,11 @@ function doubtChiSeqs(t) {
   return seqs;
 }
 async function doubtCallPhase(pi, tile) {
+  // 持ち時間の鳴き判断予算は、このフェーズを抜けたら残さない (build134)
+  try { return await doubtCallPhaseInner(pi, tile); }
+  finally { if (typeof NET !== 'undefined' && NET) NET.callBudget = {}; }
+}
+async function doubtCallPhaseInner(pi, tile) {
   // 全員の主張を先に集めてから、カン>ポン>チー・同種は近い順で最優先の1つだけを実行する。
   // (人間には可能な主張をすべて1つのプロンプトで提示する)
   var claims = [];
@@ -4078,8 +4118,10 @@ async function doubtCallPhase(pi, tile) {
       if (!btns.length) continue;
       btns.push({ label: 'パス', value: 'pass', cls: 'sub' });
       renderAll();
+      netCallBudgetStart(cqi);
       NET.promptSeat = cqi;
       var ans = await waitHuman(btns);
+      if (ans !== 'kan' && ans !== 'pon' && ans !== 'chi') netCallBudgetEnd(cqi);
       if (ans === 'kan' || ans === 'pon') claims.push({ pi: cqi, kind: ans, seq: null });
       else if (ans === 'chi') {
         var seqs = doubtChiSeqs(tile.t);
@@ -4110,9 +4152,11 @@ async function doubtCallPhase(pi, tile) {
   claims.sort(function (a, b) { return rank[a.kind] - rank[b.kind] || ((a.pi - pi + NP()) % NP()) - ((b.pi - pi + NP()) % NP()); });
   for (var ci2 = 0; ci2 < claims.length; ci2++) {
     var out = await doubtExecuteClaim(claims[ci2].pi, pi, tile, claims[ci2].kind, claims[ci2].seq, { defer: true });
+    netCallBudgetEnd(claims[ci2].pi);
     if (!out) continue;
     var final = await doubtOverrideRounds(pi, tile, { pi: out.player, kind: claims[ci2].kind, meld: out.meld });
     if (!final) return null;
+    NET.callBudget = {}; // 主張の決着後は即ダウト窓などに予算を持ち越さない
     // 最終的に残った主張に対してだけ、即ダウト窓とカンドラを行う
     await doubtImmediateWindow(final.pi, final.meld);
     var fp = G.players[final.pi];
@@ -8220,6 +8264,9 @@ var NET = {
   promptSeat: null,   // 次の waitHuman/modalChoice の対象席 (呼び出し側が直前にセット)
   promptSeq: 1,
   pendingPrompts: {}, // host側: id -> {seat, resolve, defaultFn, tag}
+  callBudget: {},     // host側: ダウトの鳴き判断の残り時間 (ゲーム席 -> {remain})。build134
+  localSig: null, localSigAt: 0, localDeadline: 0, localBudget: false, // host側: 自席の待ち監視
+  guestDeadline: 0,   // guest側: 自分のプロンプトの期限 (表示用)
   resultWait: null,   // host側: 結果画面の「次へ」全員待ちの状態 (netWaitGuestsNext が管理)
   lastSnapJson: {},   // host側: seat -> 最後に送った snap の JSON (重複送信抑制)
   started: false,
@@ -8371,14 +8418,136 @@ function netDefaultButtonValue(buttons) {
   for (var j = buttons.length - 1; j >= 0; j--) if (buttons[j].cls === 'sub') return buttons[j].value;
   return buttons.length ? buttons[buttons.length - 1].value : null;
 }
+/* ---------- 持ち時間 (build134): ホストが判定し、時間切れは既定動作で解決する ----------
+   既定動作 (bd承認 2026-11-27): 打牌はツモ切り、宣言系はパス/見送り、
+   ダウトされた側の選択は「公開する」(tdef マーク)。結果プロンプトは対象外。
+   ダウト系の「鳴き」判断だけは、主張の提示から牌選びの完了までを1回の判断として
+   残り時間を持ち越す (callBudget)。キャンセルしても残り時間は戻らない。 */
+function netTimeoutButtonValue(buttons) {
+  if (!buttons || !buttons.length) return null;
+  for (var i = 0; i < buttons.length; i++) if (buttons[i].tdef) return buttons[i].value;
+  return netDefaultButtonValue(buttons);
+}
+function netTimeoutValue(seat, kind, payload, defaultFn) {
+  if (kind === 'discard') {
+    var p = G.players[seat];
+    if (p && G.lastDrawn && p.hand.some(function (t) { return t.id === G.lastDrawn.id; })) return { tileId: G.lastDrawn.id };
+    return defaultFn();
+  }
+  if (kind === 'pick') return null;
+  if (kind === 'buttons' || kind === 'modal') return netTimeoutButtonValue(payload && payload.buttons);
+  return defaultFn();
+}
+function netPromptLimitMs(seat, kind, tag) {
+  if (typeof NET === 'undefined' || !NET || NET.mode !== 'host' || tag === 'result') return 0;
+  if (NET.callBudget && NET.callBudget[seat]) return Math.max(1, NET.callBudget[seat].remain);
+  var base = Number(S.netTimeLimit || 0);
+  return base > 0 ? base * 1000 : 0;
+}
+function netSettlePrompt(e) {
+  if (!e) return;
+  if (e.timer) { clearTimeout(e.timer); e.timer = null; }
+  if (e.budgetSeat != null && NET.callBudget && NET.callBudget[e.budgetSeat]) {
+    var b = NET.callBudget[e.budgetSeat];
+    b.remain -= (Date.now() - (e.startedAt || Date.now()));
+    if (b.remain <= 0) delete NET.callBudget[e.budgetSeat];
+  }
+}
+function netCallBudgetStart(seat) {
+  if (typeof NET === 'undefined' || !NET || NET.mode !== 'host') return;
+  if (!isDoubtVariant()) return;
+  var base = Number(S.netTimeLimit || 0);
+  if (!base) return;
+  if (!NET.callBudget) NET.callBudget = {};
+  if (!NET.callBudget[seat]) NET.callBudget[seat] = { remain: Math.max(base, 10) * 1000 };
+}
+function netCallBudgetEnd(seat) {
+  if (NET.callBudget) delete NET.callBudget[seat];
+}
+function netLocalTsumogiri() {
+  var p = G.players[G.current];
+  if (p && G.lastDrawn && p.hand.some(function (t) { return t.id === G.lastDrawn.id; })) return { tileId: G.lastDrawn.id };
+  var plan = cpuPlanDiscard(G.current);
+  return { tileId: plan.tileId };
+}
+/* ホスト本人の判断待ちにも持ち時間を効かせるための監視 (200ms 間隔)。
+   対象は判断の待ちだけ: アクションボタン (G.pending)、捨て牌/牌選び (G.discardWait)、
+   判断モーダル (modalChoice が保持した resolver)。結果画面などのモーダルは対象外。 */
+function netTimerTick() {
+  var el = $('net-timer'); if (!el) return;
+  if (typeof NET === 'undefined' || !NET) return;
+  if (NET.mode === 'guest') {
+    if (NET.guestPrompt && NET.guestDeadline) {
+      var gr = Math.max(0, Math.ceil((NET.guestDeadline - Date.now()) / 1000));
+      el.textContent = '⏱ 残り ' + gr + ' 秒';
+      el.classList.remove('hidden');
+      el.classList.toggle('urgent', gr <= 5);
+    } else el.classList.add('hidden');
+    return;
+  }
+  if (NET.mode !== 'host' || typeof G === 'undefined' || !G || G.over) { el.classList.add('hidden'); return; }
+  var sig = null, kind = null, buttons = null;
+  var modal = $('modal');
+  if (G.modalTimerResolve && modal && !modal.classList.contains('hidden')) { sig = G.modalTimerResolve; kind = 'modal'; buttons = G.modalTimerButtons; }
+  else if (G.discardWait) { sig = G.discardWait; kind = G.pickWait ? 'pick' : 'discard'; }
+  else if (G.pending) { sig = G.pending; kind = 'buttons'; buttons = G.pending.buttons; }
+  var now = Date.now();
+  if (sig !== NET.localSig) {
+    if (NET.localSig && NET.localBudget && NET.callBudget && NET.callBudget[0]) {
+      var pb = NET.callBudget[0];
+      pb.remain -= (now - NET.localSigAt);
+      if (pb.remain <= 0) delete NET.callBudget[0];
+    }
+    NET.localSig = sig; NET.localSigAt = now; NET.localBudget = false; NET.localDeadline = 0;
+    if (sig) {
+      var lim = 0;
+      if (NET.callBudget && NET.callBudget[0]) { lim = Math.max(1, NET.callBudget[0].remain); NET.localBudget = true; }
+      else lim = Number(S.netTimeLimit || 0) * 1000;
+      if (lim > 0) NET.localDeadline = now + lim;
+    }
+  }
+  if (!sig || !NET.localDeadline) { el.classList.add('hidden'); return; }
+  var remain = NET.localDeadline - now;
+  if (remain > 0) {
+    var rs = Math.ceil(remain / 1000);
+    el.textContent = '⏱ 残り ' + rs + ' 秒';
+    el.classList.remove('hidden');
+    el.classList.toggle('urgent', rs <= 5);
+    return;
+  }
+  el.classList.add('hidden');
+  var wasBudget = NET.localBudget;
+  NET.localSig = null; NET.localDeadline = 0; NET.localBudget = false;
+  if (wasBudget && NET.callBudget) delete NET.callBudget[0];
+  if (kind === 'modal') { var f = G.modalTimerResolve; if (f) f(netTimeoutButtonValue(buttons)); }
+  else if (kind === 'pick') { resolvePending('cancel'); }
+  else if (kind === 'discard') { var dw = G.discardWait; G.discardWait = null; if (dw) dw.resolve(netLocalTsumogiri()); }
+  else if (kind === 'buttons') { resolvePending(netTimeoutButtonValue(buttons)); }
+}
 function netPromptRaw(seat, kind, payload, defaultFn, tag) {
   // seat はゲーム席。pendingPrompts にはゲーム席で保持し、中継へは中継席に変換して送る
   return new Promise(function (resolve) {
     if (!netSeatConnected(seat)) { resolve({ netDefault: true, value: defaultFn() }); return; }
     var id = NET.promptSeq++;
-    NET.pendingPrompts[id] = { seat: seat, resolve: resolve, defaultFn: defaultFn, tag: tag };
+    var entry = { seat: seat, resolve: resolve, defaultFn: defaultFn, tag: tag };
+    NET.pendingPrompts[id] = entry;
+    var lim = netPromptLimitMs(seat, kind, tag);
+    var pl = {};
+    Object.keys(payload || {}).forEach(function (k) { pl[k] = payload[k]; });
+    if (lim > 0) {
+      entry.startedAt = Date.now();
+      if (NET.callBudget && NET.callBudget[seat]) entry.budgetSeat = seat;
+      entry.timer = setTimeout(function () {
+        if (NET.pendingPrompts[id] !== entry) return;
+        delete NET.pendingPrompts[id];
+        entry.timer = null;
+        if (entry.budgetSeat != null && NET.callBudget) delete NET.callBudget[entry.budgetSeat];
+        resolve({ netDefault: true, value: netTimeoutValue(seat, kind, payload, defaultFn) });
+      }, lim);
+      pl.limitMs = lim;
+    }
     var msg = { t: 'prompt', id: id, seat: netGameToRelay(seat), kind: kind };
-    Object.keys(payload || {}).forEach(function (k) { msg[k] = payload[k]; });
+    Object.keys(pl).forEach(function (k) { msg[k] = pl[k]; });
     netSendTable(msg);
   });
 }
@@ -8779,7 +8948,7 @@ function netHostOnTableMsg(m) {
   if (m.t === 'guest') { netHostOnGuestEvent(m); return; }
   if (m.t === 'answer') {
     var e = NET.pendingPrompts[m.id];
-    if (e) { delete NET.pendingPrompts[m.id]; e.resolve({ value: m.value }); }
+    if (e) { delete NET.pendingPrompts[m.id]; netSettlePrompt(e); e.resolve({ value: m.value }); }
     return;
   }
 }
@@ -8821,7 +8990,7 @@ function netHostGuestDown(seat) {
   // その席宛の未回答プロンプトはデフォルト回答で解決する (対局を止めない)
   Object.keys(NET.pendingPrompts).forEach(function (id) {
     var e = NET.pendingPrompts[id];
-    if (e.seat === gameSeat) { delete NET.pendingPrompts[id]; e.resolve({ netDefault: true, value: e.defaultFn() }); }
+    if (e.seat === gameSeat) { delete NET.pendingPrompts[id]; netSettlePrompt(e); e.resolve({ netDefault: true, value: e.defaultFn() }); }
   });
   netRenderMembers();
 }
@@ -8934,6 +9103,7 @@ function netGuestOnPrompt(msg) {
     var b = $('btn-net-close'); if (b) b.addEventListener('click', function () { NET.guestInfoModal = false; hideModal(); });
     return;
   }
+  NET.guestDeadline = msg.limitMs ? Date.now() + msg.limitMs : 0;
   NET.guestPrompt = msg;
   netGuestApplyPrompt();
 }
@@ -9000,6 +9170,7 @@ function netGuestRenderPick() {
 function netGuestAnswer(id, value) {
   if (!NET.guestPrompt || NET.guestPrompt.id !== id) return;
   NET.guestPrompt = null;
+  NET.guestDeadline = 0;
   if (G) {
     G.pending = null; G.discardWait = null; G.pendingDiscard = null;
     G.netPick = null; G.centerWait = null; G.exchangePut = null; G.pickWait = null; G.narabeSelected = null;
@@ -9138,7 +9309,7 @@ function netLeaveTable() {
   NET.rosterYou = null; NET.gameSeat = null;
   NET.seatOrder = null; NET.seatManual = false;
   var mc2 = $('net-match-chat'); if (mc2) mc2.classList.add('hidden');
-  NET.guests = {}; NET.seats = {}; NET.pendingPrompts = {};
+  NET.guests = {}; NET.seats = {}; NET.pendingPrompts = {}; NET.callBudget = {}; NET.localSig = null; NET.localDeadline = 0; NET.guestDeadline = 0;
   $('net-table-view').classList.add('hidden');
   $('net-lobby-view').classList.remove('hidden');
 }
@@ -9163,6 +9334,11 @@ function netInit() {
     try { localStorage.setItem('hensokuNetName', NET.name); } catch (e) {}
     netConnectLobby();
   });
+  var tlSel = $('net-timelimit');
+  if (tlSel) { tlSel.value = String(S.netTimeLimit || 0); tlSel.addEventListener('change', function () { S.netTimeLimit = Number(tlSel.value); saveSettings(); }); }
+  var ncSel = $('net-cpuwait');
+  if (ncSel) { ncSel.value = String(S.netCpuWait != null ? S.netCpuWait : 1); ncSel.addEventListener('change', function () { S.netCpuWait = Number(ncSel.value); saveSettings(); }); }
+  setInterval(netTimerTick, 200);
   $('net-create').addEventListener('click', netCreateTable);
   $('net-start').addEventListener('click', netHostStart);
   var nsh = $('net-shuffle');
