@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-26-132]</title>
+<title>変則麻雀 [build 2026-11-27-133]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -252,7 +252,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-26-132</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-27-133</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -359,6 +359,13 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
         </select></label>
       <label><input type="checkbox" id="set-doubtextraron"> ダウト系: 追加ルール「ダウトロン固定2000点」</label>
       <label><input type="checkbox" id="set-doubtextrawareme"> ダウト系: 追加ルール「ダウト割れ目」</label>
+      <label>CPU戦の待ち時間
+        <select id="set-cpuwait">
+          <option value="0">なし</option>
+          <option value="0.5">短い（現在の半分）</option>
+          <option value="1">現在</option>
+          <option value="2">長い（現在の2倍）</option>
+        </select></label>
       <label>ロールプレイ: 特技の数
         <select id="set-rpabilities">
           <option value="1">1つのみ</option>
@@ -1328,6 +1335,7 @@ var DEFAULT_SETTINGS = {
   noCall: false, // 鳴きなしフラグ: ONの間、他家の捨て牌への鳴きは自動でパスする
   noDoubtClaim: false, // ダウト主張なしフラグ: ONの間、ダウトの主張は自動でパスする (鳴きなしとは別ボタン)
   doubtWilds: 4, // オールマイティ枚数 (4/6/8。通常オールマイティとダウト系で共用、build127)
+  cpuWait: 1, // CPU戦の待ち時間倍率 (0=なし, 0.5=半分, 1=現在, 2=2倍。build133)
   doubtWildKind: 'five', roleplayAbilities: 1, // 万能牌の種類 (共用): 'five' = 5, 'flower' = 春夏秋冬
   chainMode: 'current', // チェインの方式: 'current' 現行 / 'revised' 改正案(2003) / 'improved' 改善案(2024)
   doubtExtraRon: false, // ダウト追加ルール「ダウトロン固定2000点」: ダウトされたロンは通常精算+別判定2000点固定 (bd指示 2026-11-24: 個別チェックボックス)
@@ -2106,7 +2114,15 @@ function modalChoice(html, buttons) {
     });
   });
 }
-function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+function sleep(ms) {
+  // CPU戦の待ち時間設定 (build133): 100ms 以上のペース用 sleep に倍率をかける。
+  // 60ms 級のポーリングは対象外。ネット対戦中は適用しない (持ち時間は別機能)。
+  if (ms >= 100 && typeof S !== 'undefined' && S.cpuWait != null && Number(S.cpuWait) !== 1 &&
+      (typeof NET === 'undefined' || !NET || !NET.mode || NET.mode === 'off')) {
+    ms = Math.round(ms * Number(S.cpuWait));
+  }
+  return new Promise(function (r) { setTimeout(r, ms); });
+}
 
 /* ---------- 進行 ---------- */
 function visibleCounts() {
@@ -7896,6 +7912,7 @@ function bindSettings() {
   $('set-suma').value = S.sanmaUma; $('set-suma').addEventListener('change', function (e) { S.sanmaUma = e.target.value; saveSettings(); });
   $('set-renho').value = S.renho; $('set-renho').addEventListener('change', function (e) { S.renho = e.target.value; saveSettings(); });
   $('set-doubtwilds').value = String(S.doubtWilds || 4); $('set-doubtwilds').addEventListener('change', function (e) { S.doubtWilds = Number(e.target.value); saveSettings(); });
+  $('set-cpuwait').value = String(S.cpuWait != null ? S.cpuWait : 1); $('set-cpuwait').addEventListener('change', function (e) { S.cpuWait = Number(e.target.value); saveSettings(); });
   $('set-voicegender').value = S.voiceGender || 'auto'; $('set-voicegender').addEventListener('change', function (e) { S.voiceGender = e.target.value; saveSettings(); });
   $('set-doubtwildkind').value = S.doubtWildKind || 'five'; $('set-doubtwildkind').addEventListener('change', function (e) { S.doubtWildKind = e.target.value; saveSettings(); });
   $('set-rpabilities').value = String(S.roleplayAbilities || 1); $('set-rpabilities').addEventListener('change', function (e) { S.roleplayAbilities = Number(e.target.value); saveSettings(); });
