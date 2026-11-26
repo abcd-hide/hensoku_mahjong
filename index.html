@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-25-130]</title>
+<title>変則麻雀 [build 2026-11-25-131]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -21,6 +21,10 @@ button:disabled { opacity: .45; cursor: default; }
 #settings-panel h2 { margin-top: 0; }
 #net-panel { background: #eef4ea; color: #222; margin: 12px; border-radius: 10px; padding: 14px; }
 #net-panel h2 { margin-top: 0; }
+#net-support { background: #fff8e6; border: 1px solid #e0c878; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
+#net-support p { margin: 6px 0; }
+a#btn-support { display: inline-block; background: #e8b23a; border-radius: 6px; padding: 7px 14px; font-size: 14px; font-weight: bold; color: #222; text-decoration: none; }
+a#btn-support:hover { filter: brightness(1.1); }
 #net-panel h3 { margin: 10px 0 4px; }
 .net-chat { height: 110px; overflow-y: auto; background: #fff; color: #222; border: 1px solid #bbb; border-radius: 6px; padding: 4px 8px; font-size: 13px; margin-bottom: 6px; }
 /* 要望・バグ報告モーダル */
@@ -248,7 +252,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-25-130</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-25-131</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -408,6 +412,10 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 
 <section id="net-panel" class="hidden">
   <h2>ネットワーク対戦</h2>
+  <div id="net-support">
+    <p class="note">ネット対戦は現在、無料枠のサーバーで運用しています。アクセスが集中すると、つながりにくくなったり、その日はネット対戦ができなくなったりする場合があります（CPU対戦は通常どおり遊べます）。利用が増えたら有料枠（月5ドルほど）へ移行する予定で、その費用への支援を募っています。</p>
+    <p><a id="btn-support" href="https://ko-fi.com/abcd_hide" target="_blank" rel="noopener">開発を支援 (Ko-fi)</a></p>
+  </div>
   <div id="net-lobby-view">
     <label>ニックネーム <input type="text" id="net-name" maxlength="12"></label>
     <button id="net-connect">ロビーに接続</button>
