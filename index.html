@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-25-127]</title>
+<title>変則麻雀 [build 2026-11-25-128]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -248,7 +248,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-25-127</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-25-128</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -5692,6 +5692,7 @@ async function chainHandleWinImproved(win) {
    通常の上がりは手牌 2,5,8,11,14 枚のとき可能で、14枚から3枚少ないごとに-1翻 (役満は13翻扱い)。
    手牌を全部捨て切る UNO 上がり: 1枚のときに UNO を宣言していれば満貫、なければ3900点ツモ扱い。
    ただし東南西北を捨てて空にしても上がりにならない。赤5は通常の5。
+   字一色・緑一色は「今ある牌のみ」で判定する (不足を補う面子は構成に合わせる。build128)。
    ※特殊牌の割り当ては原典サイト (UNO.html) の文章どおり。 */
 function unoEffNum(tile) {
   if (tile.t < 27) return (tile.t % 9) + 1; // 赤5も通常の5
@@ -5743,6 +5744,27 @@ function unoStep(pi, skip) {
 }
 function unoPhantomMelds(counts, need) {
   if (need <= 0) return [];
+  // 実牌のみで色の役満が成立する構成なら、ファントム面子もその構成に合わせて
+  // 役を壊さないようにする (build128、bd指示: 「今ある牌のみ」が字一色や
+  // 緑一色となれば、その役として判定する)
+  var present = [];
+  for (var pt = 0; pt < 34; pt++) if (counts[pt] > 0) present.push(pt);
+  var allGreen = present.length > 0 && present.every(function (t) { return t === 19 || t === 20 || t === 21 || t === 23 || t === 25 || t === 32; });
+  var allHonor = present.length > 0 && present.every(function (t) { return t >= 27; });
+  var fill = [], fi;
+  if (allGreen && allHonor) { // 実牌が發のみ: 發の刻子で補い字一色かつ緑一色にする
+    // (open:true は暗刻系の役満をファントムで捏造しないため)
+    for (fi = 0; fi < need; fi++) fill.push({ kind: 'trip', tile: 32, open: true, tiles: [] });
+    return fill;
+  }
+  if (allGreen) { // 緑一色を壊さないよう 2,3,4索の順子で補う
+    for (fi = 0; fi < need; fi++) fill.push({ kind: 'seq', tile: 19, open: false, tiles: [] });
+    return fill;
+  }
+  if (allHonor) { // 字一色を壊さないよう字牌の刻子で補う (open:true の理由は上と同じ)
+    for (fi = 0; fi < need; fi++) fill.push({ kind: 'trip', tile: present[0], open: true, tiles: [] });
+    return fill;
+  }
   var doraTypes = doraTypesNow(null);
   var suitsPresent = [0, 1, 2].filter(function (s) { for (var i = 0; i < 9; i++) if (counts[s * 9 + i] > 0) return true; return false; });
   var suitOrder = suitsPresent.length ? suitsPresent : [0, 1, 2];
@@ -5757,6 +5779,11 @@ function unoPhantomMelds(counts, need) {
       cands.push({ kind: 'seq', tile: s * 9 + st, open: false, tiles: [] });
     }
   });
+  if (cands.length < need && suitsPresent.length === 1) {
+    // 実牌が1スートのみ: 同じスートの順子を繰り返して補い、一色手を壊さない
+    var onlySuit = suitsPresent[0], ci = 0;
+    while (cands.length < need) { cands.push({ kind: 'seq', tile: onlySuit * 9 + 1 + (ci % 5), open: false, tiles: [] }); ci++; }
+  }
   for (var s2 = 0; s2 < 3 && cands.length < need; s2++) for (var st2 = 1; st2 <= 5 && cands.length < need; st2++) {
     var tt = s2 * 9 + st2;
     if (!cands.some(function (c) { return c.tile === tt; })) cands.push({ kind: 'seq', tile: tt, open: false, tiles: [] });
