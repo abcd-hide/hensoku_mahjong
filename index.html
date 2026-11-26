@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-25-129]</title>
+<title>変則麻雀 [build 2026-11-25-130]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -248,7 +248,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-25-129</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-25-130</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -257,7 +257,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
     <button id="btn-nodoubt">ダウト主張なし: OFF</button>
     <button id="btn-settings">ルール設定</button>
     <button id="btn-net">ネット対戦</button>
-    <button id="btn-newmatch">対戦開始</button>
+    <button id="btn-newmatch">CPU戦開始</button>
   </div>
 </header>
 <div id="credit-line">収録ルール（4枚ヅモを除く）考案： ひで ほか</div>
@@ -401,8 +401,8 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
     </fieldset>
   </div>
   <div class="set-actions">
-    <button id="btn-start">この設定で対戦開始</button>
-    <span class="note">設定は自動で保存されます。ネット対戦はヘッダーの「ネット対戦」から接続できます。</span>
+    <button id="btn-start">CPU戦開始</button>
+    <button id="btn-net2">ネット対戦</button>
   </div>
 </section>
 
@@ -9130,6 +9130,9 @@ function netInit() {
       p.scrollIntoView();
     }
   });
+    // 設定画面下部の「ネット対戦」もヘッダーと同じ動作にする (build130)
+  var net2 = $('btn-net2');
+  if (net2) net2.addEventListener('click', function () { $('btn-net').click(); });
   $('net-connect').addEventListener('click', function () {
     NET.name = (nameEl.value || '').trim() || 'ゲスト';
     try { localStorage.setItem('hensokuNetName', NET.name); } catch (e) {}
