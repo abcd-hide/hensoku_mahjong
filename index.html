@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-27-135]</title>
+<title>変則麻雀 [build 2026-11-27-136]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -260,7 +260,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-27-135</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-27-136</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -370,9 +370,9 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
       <label>CPU戦の待ち時間
         <select id="set-cpuwait">
           <option value="0">なし</option>
-          <option value="0.5">短い（現在の半分）</option>
-          <option value="1">現在</option>
-          <option value="2">長い（現在の2倍）</option>
+          <option value="0.5">短い</option>
+          <option value="1">普通</option>
+          <option value="2">長い</option>
         </select></label>
       <label>ロールプレイ: 特技の数
         <select id="set-rpabilities">
@@ -447,9 +447,9 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
     <label>CPUの待ち時間
       <select id="net-cpuwait">
         <option value="0">なし</option>
-        <option value="0.5">短い（半分）</option>
-        <option value="1">現在</option>
-        <option value="2">長い（2倍）</option>
+        <option value="0.5">短い</option>
+        <option value="1">普通</option>
+        <option value="2">長い</option>
       </select></label>
     <p class="note">持ち時間とCPUの待ち時間は、卓を作った人の設定が対戦開始時に全員へ共有されます。ダウト系の「鳴き」判断だけ、はやいでも最低10秒あります（牌を選ぶところまで含めて1回の判断です。途中でやめても時間は戻りません）。時間切れのときは、打牌はツモ切り、鳴きやダウトの宣言は見送り、ダウトされた牌は公開されます。</p>
     <p><button id="net-create">卓を作る（現在の設定で）</button></p>
@@ -1359,7 +1359,7 @@ var DEFAULT_SETTINGS = {
   noCall: false, // 鳴きなしフラグ: ONの間、他家の捨て牌への鳴きは自動でパスする
   noDoubtClaim: false, // ダウト主張なしフラグ: ONの間、ダウトの主張は自動でパスする (鳴きなしとは別ボタン)
   doubtWilds: 4, // オールマイティ枚数 (4/6/8。通常オールマイティとダウト系で共用、build127)
-  cpuWait: 1, // CPU戦の待ち時間倍率 (0=なし, 0.5=半分, 1=現在, 2=2倍。build133)
+  cpuWait: 1, // CPU戦の待ち時間倍率 (0=なし, 0.5=短い, 1=普通, 2=長い。build133)
   netTimeLimit: 0, // ネット対戦の持ち時間 (1手ごとの秒数。0=なし/20/10/5。卓設定、build134)
   netCpuWait: 1, // ネット対戦で CPU が入る席の待ち時間倍率 (卓設定。0/0.5/1/2。build134)
   doubtWildKind: 'five', roleplayAbilities: 1, // 万能牌の種類 (共用): 'five' = 5, 'flower' = 春夏秋冬
