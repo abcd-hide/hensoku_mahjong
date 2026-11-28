@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-27-136]</title>
+<title>変則麻雀 [build 2026-11-28-137]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -260,7 +260,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-27-136</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-28-137</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -401,6 +401,8 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
       <label><input type="checkbox" id="set-atamahane"> 頭ハネ（オフ=ダブロン可）</label>
       <label><input type="checkbox" id="set-tobi"> トビ終了</label>
       <label><input type="checkbox" id="set-nagashi"> 流し満貫</label>
+      <label><input type="checkbox" id="set-nishiiri"> 西入り（30000点返しでトップが30400点以下なら次の風へ進む）</label>
+      <label><input type="checkbox" id="set-agariyame"> 上がり止め（最終局に親が上がって単独トップなら連荘せず終了）</label>
       <label><input type="checkbox" id="set-sound"> 効果音（打牌音）</label>
       <label><input type="checkbox" id="set-voice"> ボイス（ポン/チー/カン/ロン/ツモ/リーチ）</label>
       <label>ボイスの声 <select id="set-voicegender"><option value="auto">おまかせ</option><option value="female">女性</option><option value="male">男性</option></select></label>
@@ -1355,6 +1357,7 @@ var DEFAULT_SETTINGS = {
   variant: 'standard', playerCount: 4, length: 'hanchan', startScore: 25000, returnScore: 30000, uma: '10-30', sanmaStartScore: 35000, sanmaReturnScore: 40000, sanmaUma: '10-30',
   aka: true, ura: true, kandora: true, ippatsu: true, kuitan: true, kiriage: true,
   pinfu30: false, kazoe: true, doubleYakuman: true, atamahane: true, tobi: true, nagashi: true,
+  nishiiri: false, agariyame: false, // 西入り / 上がり止め (bd要望 2026-11-27、デフォルトは従来動作)
   openRiichi: true, renho: 'off', daisharin: true, renkou: true, sound: true, voice: true, voiceGender: 'auto',
   noCall: false, // 鳴きなしフラグ: ONの間、他家の捨て牌への鳴きは自動でパスする
   noDoubtClaim: false, // ダウト主張なしフラグ: ONの間、ダウトの主張は自動でパスする (鳴きなしとは別ボタン)
@@ -1527,7 +1530,7 @@ function startMatch() {
   var mkPlayers = [newPlayer('あなた', true)];
   for (var npi = 1; npi < (isSanma() ? 3 : 4); npi++) mkPlayers.push(newPlayer('CPU ' + npi, false));
   G = { players: mkPlayers,
-    dealer: dealerBase0, dealerBase: dealerBase0, roundNum: 0, honba: 0, kyotaku: 0, handNo: 0, over: false, abilityPool: {}, nextPoverty: { kind: 'none' } };
+    dealer: dealerBase0, dealerBase: dealerBase0, roundNum: 0, honba: 0, kyotaku: 0, handNo: 0, over: false, abilityPool: {}, nextPoverty: { kind: 'none' }, extendRounds: 0 };
   G.players.forEach(function (p) { p.score = startScore; });
   G.handNo = 0;
   // アクセス統計: 対局開始を1回だけ数える (ローカル開始もネットのホスト開始も
@@ -1535,25 +1538,39 @@ function startMatch() {
   statsSend('match', { variant: S.variant, players: NP() });
   nextHand(true);
 }
-function roundWindOf() { return 27 + Math.floor(G.handNo / NP()) % 2; } // 東場/南場のみ
+function roundWindOf() { return 27 + Math.floor(G.handNo / NP()) % 4; } // 東南西北 (西入りで西場・北場もありうる)
 function roundName() {
-  var winds = ['東', '南'];
+  var winds = ['東', '南', '西', '北'];
   var hn = G.handNo;
   // 試合終了後は最終局の表示のままにする (内部では handNo が進んでいるため、そのまま表示すると次の局に見える)
   if (S.variant !== 'survival') {
-    var total = S.length === 'single' ? 1 : (S.length === 'tonpuu' ? NP() : 2 * NP());
+    var total = matchTotalHands();
     if (hn >= total) hn = total - 1;
   }
-  return winds[Math.floor(hn / NP()) % 2] + (hn % NP() + 1) + '局';
+  return winds[Math.floor(hn / NP()) % 4] + (hn % NP() + 1) + '局';
 }
+function baseTotalHands() { return S.length === 'single' ? 1 : (S.length === 'tonpuu' ? NP() : 2 * NP()); } // 1周 = 人数分 (サンマ東風3局/半荘6局)
+function matchTotalHands() { return baseTotalHands() + (G && G.extendRounds ? G.extendRounds * NP() : 0); }
 function matchEndedByLength() {
   if (S.variant === 'survival') return false; // ドボンまで
-  var total = S.length === 'single' ? 1 : (S.length === 'tonpuu' ? NP() : 2 * NP()); // 1周 = 人数分 (サンマ東風3局/半荘6局)
-  return G.handNo >= total;
+  return G.handNo >= matchTotalHands();
+}
+function tryExtendMatch() {
+  // 西入り (bd要望 2026-11-27): 設定ON・30000点返し・トップが30400点以下なら、
+  // 終了せず次の風へ1周進める (東風→南場、半荘→西場、西場→北場、北場→東場)
+  if (!S.nishiiri || S.variant === 'survival' || S.length === 'single') return false;
+  if (returnScoreNow() !== 30000) return false;
+  var top = Math.max.apply(null, G.players.map(function (p) { return p.score; }));
+  if (top > 30400) return false;
+  G.extendRounds = (G.extendRounds || 0) + 1;
+  log('西入り: トップが ' + top + ' 点のため、' + roundName() + ' へ進みます');
+  return true;
 }
 function nextHand(first) {
   if (!first) {
-    if (matchEndedByLength()) { endMatch(); return; }
+    if (matchEndedByLength()) {
+      if (!tryExtendMatch()) { endMatch(); return; }
+    }
   }
   // 鳴きなし/ダウト主張なしフラグは毎局OFFがデフォルト (bd指示 2026-11-19)
   if (S.noCall || S.noDoubtClaim) { S.noCall = false; S.noDoubtClaim = false; saveSettings(); syncNoCallBtn(); syncNoDoubtBtn(); }
@@ -2720,7 +2737,15 @@ return modalChoice(html, buttons);
 }
 function onHumanTileClick(tileId) {
 if (!G) return;
-if (G.exchangePut) { G.exchangePut.resolve(tileId); return; }
+if (G.exchangePut) {
+  // 出せる牌が制限されている待ち (UNOの先手選び・まとめ捨て・カウンター等) では、
+  // 制限外の牌のクリックを受け付けない。従来は見た目 (disabled) だけで実際は
+  // 選べてしまい、同じ牌の二重選択や、色・数字が合わない牌まで捨てられた
+  // (bd報告 2026-11-27)。キーボード経由のクリックもここを通るので一括で効く
+  var rst = G.pendingDiscard && G.pendingDiscard.restrict;
+  if (rst && rst.indexOf(tileId) < 0) return;
+  G.exchangePut.resolve(tileId); return;
+}
 // ネット対戦ゲストの牌選びプロンプト (kind 'pick'): クリックで選択をトグルする
 if (typeof NET !== 'undefined' && NET && NET.mode === 'guest' && G.netPick) {
 var npk = G.netPick;
@@ -5484,12 +5509,14 @@ function chainRescore(ev, newHan, pi, isTsumo) {
   refreshEvLabel(ev);
   return ev;
 }
-async function chainSwapWithPartner(pi, giveTile) {
+async function chainSwapWithPartner(pi, giveTile, partnerAuto) {
   var p = G.players[pi], qi = chainPartner(pi), partner = G.players[qi];
   var ix = p.hand.indexOf(giveTile);
   if (ix >= 0) p.hand.splice(ix, 1);
   var back;
-  if (partner.isHuman) {
+  // partnerAuto: リーチ/固定した人のツモ牌交換では、原典「その相方は交換しない」
+  // により相方は牌を選ばない (CPUと同じ自動選択にする) (bd報告 2026-11-27)
+  if (partner.isHuman && !partnerAuto) {
     log('パートナーへ渡す牌を1枚選んでください');
     G.pendingDiscard = { restrict: null };
     renderAll();
@@ -5549,7 +5576,7 @@ async function chainRiichiTurn(pi) {
     if (declare) { await doWinTsumo(pi, ev); return 'win'; }
   }
   var drawnTile = G.lastDrawn;
-  var received = await chainSwapWithPartner(pi, drawnTile);
+  var received = await chainSwapWithPartner(pi, drawnTile, true);
   return applyDiscardChoice(pi, { tileId: received.id });
 }
 function chainCpuWantsFix(pi, plan) {
@@ -5829,38 +5856,62 @@ function unoPhantomMelds(counts, need) {
     for (fi = 0; fi < need; fi++) fill.push({ kind: 'trip', tile: 32, open: true, tiles: [] });
     return fill;
   }
-  if (allGreen) { // 緑一色を壊さないよう 2,3,4索の順子で補う
-    for (fi = 0; fi < need; fi++) fill.push({ kind: 'seq', tile: 19, open: false, tiles: [] });
+  if (allGreen) { // 緑一色を壊さないよう緑の牌だけで補う。緑の順子は 234索
+    // しかない (345・456索は5索を含むので緑でない) ため、それを最大1つまで
+    // (実手牌に234索があれば0つ) にし、残りは發の開いた刻子にする。
+    // 同じ順子の繰り返しで一盃口を捏造しないため (bd指示 2026-11-28)
+    var has234 = counts[19] > 0 && counts[20] > 0 && counts[21] > 0;
+    for (fi = 0; fi < need; fi++) {
+      if (fi === 0 && !has234) fill.push({ kind: 'seq', tile: 19, open: false, tiles: [] });
+      else fill.push({ kind: 'trip', tile: 32, open: true, tiles: [] });
+    }
     return fill;
   }
   if (allHonor) { // 字一色を壊さないよう字牌の刻子で補う (open:true の理由は上と同じ)
     for (fi = 0; fi < need; fi++) fill.push({ kind: 'trip', tile: present[0], open: true, tiles: [] });
     return fill;
   }
-  var doraTypes = doraTypesNow(null);
+  // 一般ケース (bd指示 2026-11-28: 「手牌でできているもの」しか役につけない):
+  // ファントムは新しい役を作らないことを原則に選ぶ。
+  // - 実手牌の順子や他のファントムと同一の順子は使わない (一盃口・二盃口の捏造防止)
+  // - 三色同順・一気通貫を完成させる順子は使わない
+  // - 実手牌が全て中張牌なら端を含む順子は使わない (断ヤオ九を壊さない)
+  // 一色系の構成 (色の偏り) は従来どおり保持する
   var suitsPresent = [0, 1, 2].filter(function (s) { for (var i = 0; i < 9; i++) if (counts[s * 9 + i] > 0) return true; return false; });
   var suitOrder = suitsPresent.length ? suitsPresent : [0, 1, 2];
-  function seqPresent(s, st) { var b = s * 9 + st; return counts[b] > 0 && counts[b + 1] > 0 && counts[b + 2] > 0; }
-  function hitsDora(s, st) { var b = s * 9 + st; return [b, b + 1, b + 2].some(function (t) { return doraTypes.indexOf(t) >= 0; }); }
-  var cands = [];
-  suitOrder.forEach(function (s) {
-    for (var st = 1; st <= 5; st++) {
-      if (seqPresent(s, st) || hitsDora(s, st)) continue;
-      var others = [0, 1, 2].filter(function (x) { return x !== s; });
-      if (seqPresent(others[0], st) && seqPresent(others[1], st)) continue;
-      cands.push({ kind: 'seq', tile: s * 9 + st, open: false, tiles: [] });
+  function seqPresent(s, st) { var b = s * 9 + st - 1; return counts[b] > 0 && counts[b + 1] > 0 && counts[b + 2] > 0; } // st = 開始数字 1..7
+  var realSeq = {};
+  [0, 1, 2].forEach(function (s) { for (var st = 1; st <= 7; st++) if (seqPresent(s, st)) realSeq[s * 10 + st] = true; });
+  var totalTiles = 0; counts.forEach(function (c) { totalTiles += c; });
+  var allSimple = present.length > 0 && present.every(function (t) { return t < 27 && (t % 9) >= 1 && (t % 9) <= 7; });
+  var chosen = [], chosenSeq = {};
+  function completesSanshoku(s, st) {
+    var others = [0, 1, 2].filter(function (x) { return x !== s; });
+    return others.every(function (x) { return realSeq[x * 10 + st] || chosenSeq[x * 10 + st]; });
+  }
+  function completesIkki(s, st) {
+    if (st !== 1 && st !== 4 && st !== 7) return false;
+    var has = { 1: st === 1, 4: st === 4, 7: st === 7 };
+    [1, 4, 7].forEach(function (x) { if (realSeq[s * 10 + x] || chosenSeq[s * 10 + x]) has[x] = true; });
+    return has[1] && has[4] && has[7];
+  }
+  function trySeq(s, st, relax) {
+    var key = s * 10 + st;
+    if (realSeq[key] || chosenSeq[key]) return false;
+    if (!relax) {
+      if (completesSanshoku(s, st) || completesIkki(s, st)) return false;
+      if (allSimple && (st === 1 || st === 7)) return false;
     }
-  });
-  if (cands.length < need && suitsPresent.length === 1) {
-    // 実牌が1スートのみ: 同じスートの順子を繰り返して補い、一色手を壊さない
-    var onlySuit = suitsPresent[0], ci = 0;
-    while (cands.length < need) { cands.push({ kind: 'seq', tile: onlySuit * 9 + 1 + (ci % 5), open: false, tiles: [] }); ci++; }
+    chosen.push({ kind: 'seq', tile: s * 9 + st - 1, open: false, tiles: [] });
+    chosenSeq[key] = true;
+    return true;
   }
-  for (var s2 = 0; s2 < 3 && cands.length < need; s2++) for (var st2 = 1; st2 <= 5 && cands.length < need; st2++) {
-    var tt = s2 * 9 + st2;
-    if (!cands.some(function (c) { return c.tile === tt; })) cands.push({ kind: 'seq', tile: tt, open: false, tiles: [] });
-  }
-  return cands.slice(0, need);
+  suitOrder.forEach(function (s) { for (var st = 1; st <= 7 && chosen.length < need; st++) trySeq(s, st, false); });
+  [0, 1, 2].forEach(function (s) { for (var st = 1; st <= 7 && chosen.length < need; st++) trySeq(s, st, false); });
+  // 制約を緩めてでも順子で埋める (三色・一気・断ヤオの保持より上がりの成立を優先)
+  [0, 1, 2].forEach(function (s) { for (var st = 1; st <= 7 && chosen.length < need; st++) trySeq(s, st, true); });
+  while (chosen.length < need) chosen.push({ kind: 'seq', tile: suitOrder[0] * 9 + 1, open: false, tiles: [] }); // 最後の手段 (従来動作)
+  return chosen.slice(0, need);
 }
 function evalUno(p, tileType, isTsumo) {
   var pc = playerCounts(p, isTsumo ? null : tileType);
@@ -5913,7 +5964,8 @@ function unoApplyBatch(pi, tiles, opts) {
   playTileSound();
   tiles.forEach(function (tile, i) {
     var ix = p.hand.indexOf(tile);
-    if (ix >= 0) p.hand.splice(ix, 1);
+    if (ix < 0) return; // 手牌にない牌 (二重選択など) は捨て牌にも入れない
+    p.hand.splice(ix, 1);
     p.discards.push({ tile: tile, riichi: !!opts.declareRiichi && i === 0, called: false, wild: false });
   });
   if (opts.declareRiichi) { p.riichi = true; p.ippatsu = true; p.score -= 1000; G.kyotaku++; }
@@ -5995,7 +6047,7 @@ async function unoPickBatch(pi, firstTile) {
     if (pick.button === 'cancel') return null;
     if (pick.button === 'go') return chosen;
     var tile = p.hand.find(function (t) { return t.id === pick.tileId; });
-    if (tile && unoBatchKey(tile) === key) chosen.push(tile);
+    if (tile && chosen.indexOf(tile) < 0 && unoBatchKey(tile) === key) chosen.push(tile);
   }
 }
 async function unoHumanTurn(pi) {
@@ -6013,7 +6065,7 @@ async function unoHumanTurn(pi) {
     if (pick.button === 'draw') return { action: 'draw' };
     if (pick.button === 'riichimode') { riichiMode = !riichiMode; continue; }
     var first = p.hand.find(function (t) { return t.id === pick.tileId; });
-    if (!first) continue;
+    if (!first || !unoMatchesTop(first)) continue; // 場の牌に合わない牌は先手にできない
     var batch = await unoPickBatch(pi, first);
     if (!batch) continue;
     if (riichiMode) {
@@ -6117,7 +6169,7 @@ async function unoPendingAction(pi) {
     G.pendingDiscard = null;
     if (pick.button === 'drawcards' || !pick.tileId) return drawCards();
     var first = p.hand.find(function (t) { return t.id === pick.tileId; });
-    if (!first) return drawCards();
+    if (!first || counters.indexOf(first) < 0) return drawCards(); // カウンターに使える牌だけ
     var batch = await unoPickBatch(pi, first);
     if (!batch) return drawCards();
     return unoDoDiscard(pi, batch, false);
@@ -7422,7 +7474,11 @@ function hanText(ev) {
 function winDetailHTML(p, ev, title, winInfo, dispTotal) {
   var html = '<h3>' + title + '</h3>';
   // 手牌 + 上がり牌
+  // UNOにはツモ牌という概念がないので、UNOのツモ上がりではツモ牌を表示しない
+  // (手牌を出し切る上がりでは手牌が空で、ツモ牌だけが表示されて変だった。
+  // bd指摘 2026-11-27)。ツモ牌を手牌から除外もしない
   var winTile = winInfo && winInfo.tile ? winInfo.tile : null;
+  if (S.variant === 'uno' && winInfo && winInfo.kind === 'tsumo') winTile = null;
   var excludeId = (winInfo && winInfo.kind === 'tsumo' && winTile) ? winTile.id : undefined;
   html += '<div class="win-hand">' + handTilesHTML(p, excludeId);
   if (winTile) html += '<span class="win-tile"><span class="win-tile-cap">' + (winInfo.kind === 'tsumo' ? 'ツモ' : '上がり牌') + '</span>' + tileHTML(winTile, { small: true }) + '</span>';
@@ -7533,6 +7589,13 @@ async function finishHand(result) {
   $('btn-board-view').addEventListener('click', toggleBoardView);
   await netAwaitResultNext($('modal-box').innerHTML);
   if (checkMatchEndByScore()) return;
+  // 上がり止め (bd要望 2026-11-27): 最終局で親が上がって単独トップになれば、
+  // 連荘せずに対戦を終了する
+  if (S.agariyame && S.variant !== 'survival' && dealerWon && G.handNo === matchTotalHands() - 1) {
+    var dScore = G.players[G.dealer].score;
+    var soleTop = G.players.every(function (p, i) { return i === G.dealer || p.score < dScore; });
+    if (soleTop) { endMatch('上がり止め: ' + G.players[G.dealer].name + ' がトップで終了'); return; }
+  }
   if (dealerWon) { G.honba++; log('親の連荘'); }
   else { G.honba = 0; G.handNo++; G.dealer = (G.handNo + (G.dealerBase || 0)) % NP(); }
   nextHand(false);
@@ -7928,7 +7991,8 @@ function bindSettings() {
     ['kiriage', 'set-kiriage'], ['pinfu30', 'set-pinfu30'], ['kazoe', 'set-kazoe'], ['doubleYakuman', 'set-doubleyakuman'],
     ['atamahane', 'set-atamahane'], ['tobi', 'set-tobi'], ['nagashi', 'set-nagashi'], ['openRiichi', 'set-openriichi'],
     ['daisharin', 'set-daisharin'], ['renkou', 'set-renkou'], ['sound', 'set-sound'], ['voice', 'set-voice'],
-    ['doubtExtraRon', 'set-doubtextraron'], ['doubtExtraWareme', 'set-doubtextrawareme']];
+    ['doubtExtraRon', 'set-doubtextraron'], ['doubtExtraWareme', 'set-doubtextrawareme'],
+    ['nishiiri', 'set-nishiiri'], ['agariyame', 'set-agariyame']];
   document.querySelectorAll('input[name="variant"]').forEach(function (el) {
     el.checked = el.value === S.variant;
     el.addEventListener('change', function () { S.variant = el.value; saveSettings(); updateVariantDesc(); });
@@ -8205,7 +8269,9 @@ document.addEventListener('keydown', function (e) {
     return;
   }
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-    if (!G || !(G.discardWait || G.tileKeyWait) || G.current !== 0) return;
+    // 交換の「渡す牌」選択 (exchangePut) は相手の番でも自分の手牌から選ぶので、
+    // Enter/数字キーと同じく current!==0 でもカーソル移動を許可する (bd報告 2026-11-27)
+    if (!G || !(G.discardWait || G.tileKeyWait) || (G.current !== 0 && !G.exchangePut)) return;
     e.preventDefault();
     var p0 = G.players[0];
     var nx = keySelIndex(p0) + (e.key === 'ArrowRight' ? 1 : -1);
@@ -9078,7 +9144,7 @@ function netGuestBackToWaiting() {
   hideModal();
   if (G) {
     G.pending = null; G.discardWait = null; G.pendingDiscard = null;
-    G.netPick = null; G.centerWait = null; G.exchangePut = null; G.pickWait = null;
+    G.netPick = null; G.centerWait = null; G.exchangePut = null; G.pickWait = null; G.tileKeyWait = false;
   }
   renderActions();
   var mc = $('net-match-chat'); if (mc) mc.classList.add('hidden');
@@ -9155,7 +9221,9 @@ function netGuestApplyPrompt() {
     if (msg.buttons && msg.buttons.length) G.pending = { buttons: msg.buttons, resolve: function (v) { netGuestAnswer(msg.id, { button: v }); } };
     renderAll();
   } else if (msg.kind === 'put') {
-    // 手牌から1枚出す (exchangePut 経由のクリック)
+    // 手牌から1枚出す (exchangePut 経由のクリック)。キーボードでも選べるよう
+    // tileKeyWait を立てる (ホスト側 waitPutOrButton51 と対称) (bd報告 2026-11-27)
+    G.tileKeyWait = true;
     G.pendingDiscard = { restrict: msg.restrict || null };
     G.exchangePut = { resolve: function (tileId) { netGuestAnswer(msg.id, { tileId: tileId }); } };
     if (msg.buttons && msg.buttons.length) G.pending = { buttons: msg.buttons, resolve: function (v) { netGuestAnswer(msg.id, { button: v }); } };
@@ -9182,7 +9250,7 @@ function netGuestAnswer(id, value) {
   NET.guestLimitMs = 0;
   if (G) {
     G.pending = null; G.discardWait = null; G.pendingDiscard = null;
-    G.netPick = null; G.centerWait = null; G.exchangePut = null; G.pickWait = null; G.narabeSelected = null;
+    G.netPick = null; G.centerWait = null; G.exchangePut = null; G.pickWait = null; G.narabeSelected = null; G.tileKeyWait = false;
   }
   renderActions();
   netSendTable({ t: 'answer', id: id, value: value });
