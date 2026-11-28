@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>変則麻雀 [build 2026-11-28-137]</title>
+<title>変則麻雀 [build 2026-11-28-138]</title>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; background: #0d2f1d; color: #f2f2e8; }
@@ -260,7 +260,7 @@ table.result td, table.result th { border-bottom: 1px solid #ccc; padding: 4px 6
 <body>
 <div id="net-banner" class="hidden">中継との接続が切れました。再接続しています…</div>
 <header>
-  <h1>変則麻雀<span class="build">build 2026-11-28-137</span></h1>
+  <h1>変則麻雀<span class="build">build 2026-11-28-138</span></h1>
   <div class="head-btns">
     <button id="btn-credit">クレジット</button>
     <button id="btn-rules">ルール詳細</button>
@@ -5509,14 +5509,12 @@ function chainRescore(ev, newHan, pi, isTsumo) {
   refreshEvLabel(ev);
   return ev;
 }
-async function chainSwapWithPartner(pi, giveTile, partnerAuto) {
+async function chainSwapWithPartner(pi, giveTile) {
   var p = G.players[pi], qi = chainPartner(pi), partner = G.players[qi];
   var ix = p.hand.indexOf(giveTile);
   if (ix >= 0) p.hand.splice(ix, 1);
   var back;
-  // partnerAuto: リーチ/固定した人のツモ牌交換では、原典「その相方は交換しない」
-  // により相方は牌を選ばない (CPUと同じ自動選択にする) (bd報告 2026-11-27)
-  if (partner.isHuman && !partnerAuto) {
+  if (partner.isHuman) {
     log('パートナーへ渡す牌を1枚選んでください');
     G.pendingDiscard = { restrict: null };
     renderAll();
@@ -5564,19 +5562,26 @@ async function chainExchange(pi) {
 }
 async function chainRiichiTurn(pi) {
   var p = G.players[pi];
+  var partner = G.players[chainPartner(pi)];
+  // パートナーがリーチ/固定宣言している場合は交換しない (bd仕様確認 2026-11-28:
+  // 縛りは「パートナーがリーチ/固定なら自分の番に交換は発生しない」の1本で、
+  // リーチ者・固定宣言者のテンパイを壊さないためのもの。相手もリーチ/固定なら
+  // ツモ牌をそのまま切る)
+  var partnerLocked = !!(partner.riichi || partner.fixed);
   var ev = evalWin(p, null, { tsumo: true });
   if (ev) {
     var declare = true;
     if (p.isHuman) {
       NET.promptSeat = pi;
       var ans = await modalChoice('<h3>ツモ！</h3><p>' + hanText(ev) + ' ' + ev.fu + '符</p>',
-        [{ label: 'ツモする', value: 'y' }, { label: '交換して続ける', value: 'n' }]);
+        [{ label: 'ツモする', value: 'y' }, { label: partnerLocked ? 'ツモ切りして続ける' : '交換して続ける', value: 'n' }]);
       declare = ans === 'y';
     }
     if (declare) { await doWinTsumo(pi, ev); return 'win'; }
   }
   var drawnTile = G.lastDrawn;
-  var received = await chainSwapWithPartner(pi, drawnTile, true);
+  if (partnerLocked) return applyDiscardChoice(pi, { tileId: drawnTile.id });
+  var received = await chainSwapWithPartner(pi, drawnTile);
   return applyDiscardChoice(pi, { tileId: received.id });
 }
 function chainCpuWantsFix(pi, plan) {
